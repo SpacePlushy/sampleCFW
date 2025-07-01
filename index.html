@@ -344,6 +344,12 @@
                 this.tournamentSize = 7;
                 this.fitnessHistory = [];
                 
+                // Initialize Strategy Pattern fitness manager
+                this.fitnessManager = new FitnessManager();
+                if (config.debugFitness || this.balanceEditDay) {
+                    this.fitnessManager.enableDebug();
+                }
+                
                 // Manual constraints for regeneration
                 this.manualConstraints = config.manualConstraints || {};
                 
@@ -820,6 +826,279 @@
                 return chromosome;
             }
             
+            // =====================================================
+            // FITNESS STRATEGY PATTERN ARCHITECTURE
+            // =====================================================
+            
+            // Penalty Registry - Centralized penalty configuration
+            class PenaltyRegistry {
+                constructor() {
+                    this.penalties = {
+                        normal: {
+                            balanceConstraint: 10000,
+                            workDay: 30,
+                            consecutive: 75,
+                            minBalance: 100,
+                            targetBalance: 20,
+                            gapVariance: 50,
+                            safetyViolations: 5000
+                        },
+                        crisis: {
+                            balanceConstraint: 0.01,  // Minimal in crisis
+                            workDay: 0,               // Don't penalize work
+                            belowTarget: 1000,        // Heavy penalty for shortfall
+                            aboveTarget: 0.1,         // Tiny penalty for overshoot
+                            earningsShortfall: 100,   // Must earn enough
+                            workDayDeficit: 1000,     // Must work enough days
+                            safetyViolations: 10000   // Enhanced safety
+                        }
+                    };
+                }
+                
+                get(mode, penaltyType) {
+                    return this.penalties[mode]?.[penaltyType] || 0;
+                }
+                
+                set(mode, penaltyType, value) {
+                    if (!this.penalties[mode]) this.penalties[mode] = {};
+                    this.penalties[mode][penaltyType] = value;
+                }
+            }
+            
+            // Fitness Validator - Sanity checks and conflict detection
+            class FitnessValidator {
+                static validate(fitness, strategy, context) {
+                    // Detect runaway penalties
+                    if (fitness > 1000000000) {
+                        throw new Error(`Runaway penalty detected: ${fitness.toExponential(2)} in ${strategy.getDescription()}`);
+                    }
+                    
+                    // Detect negative fitness (usually indicates bugs)
+                    if (fitness < 0) {
+                        console.warn(`Negative fitness detected: ${fitness} in ${strategy.getDescription()}`);
+                    }
+                    
+                    // Context-specific validations
+                    if (context.inCrisisMode && fitness > 100000000) {
+                        console.warn(`Unexpectedly high crisis mode fitness: ${fitness}`);
+                    }
+                    
+                    return true;
+                }
+                
+                static logSuspiciousValues(breakdown) {
+                    Object.entries(breakdown).forEach(([key, value]) => {
+                        if (value > 50000000) {
+                            console.warn(`Suspicious penalty value: ${key} = ${value}`);
+                        }
+                    });
+                }
+            }
+            
+            // Base Strategy Interface
+            class FitnessStrategy {
+                constructor(penaltyRegistry) {
+                    this.penalties = penaltyRegistry;
+                    this.debugMode = false;
+                }
+                
+                calculateFitness(chromosome, context) {
+                    throw new Error("FitnessStrategy.calculateFitness() must be implemented");
+                }
+                
+                debugBreakdown(chromosome, context) {
+                    throw new Error("FitnessStrategy.debugBreakdown() must be implemented");
+                }
+                
+                getDescription() {
+                    throw new Error("FitnessStrategy.getDescription() must be implemented");
+                }
+                
+                enableDebug() {
+                    this.debugMode = true;
+                    return this;
+                }
+            }
+            
+            // Normal Mode Strategy - Focus on efficiency and precision
+            class NormalModeFitness extends FitnessStrategy {
+                calculateFitness(chromosome, context) {
+                    const { balance, workDays, violations, totalEarnings, minBalance, workDaysList } = context;
+                    
+                    // Core penalties for normal mode
+                    const finalBalanceDiff = Math.abs(balance - context.targetEndingBalance);
+                    const workDayPenalty = workDays * this.penalties.get('normal', 'workDay');
+                    
+                    // Calculate consecutive work penalty
+                    const gaps = [];
+                    for (let i = 1; i < workDaysList.length; i++) {
+                        gaps.push(workDaysList[i] - workDaysList[i-1]);
+                    }
+                    const consecutiveDays = gaps.filter(g => g === 1).length;
+                    const consecutivePenalty = consecutiveDays * this.penalties.get('normal', 'consecutive');
+                    
+                    // Work distribution variance
+                    let gapVariance = 0;
+                    if (gaps.length > 0) {
+                        const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+                        gapVariance = gaps.reduce((sum, gap) => sum + Math.pow(gap - avgGap, 2), 0) / gaps.length;
+                    }
+                    
+                    const fitness = 
+                        violations * this.penalties.get('normal', 'safetyViolations') +
+                        finalBalanceDiff * this.penalties.get('normal', 'targetBalance') +
+                        workDayPenalty +
+                        consecutivePenalty +
+                        Math.sqrt(gapVariance) * this.penalties.get('normal', 'gapVariance') +
+                        (minBalance < context.minimumBalance ? 
+                            Math.abs(minBalance - context.minimumBalance) * this.penalties.get('normal', 'minBalance') : 0);
+                    
+                    return fitness;
+                }
+                
+                debugBreakdown(chromosome, context) {
+                    const { balance, workDays, violations, minBalance, workDaysList } = context;
+                    const finalBalanceDiff = Math.abs(balance - context.targetEndingBalance);
+                    
+                    console.log(`  NORMAL: Balance diff penalty: ${finalBalanceDiff * this.penalties.get('normal', 'targetBalance')}`);
+                    console.log(`  NORMAL: Work day penalty: ${workDays * this.penalties.get('normal', 'workDay')}`);
+                    console.log(`  NORMAL: Safety violations: ${violations * this.penalties.get('normal', 'safetyViolations')}`);
+                }
+                
+                getDescription() {
+                    return "Normal Mode (Efficiency & Precision)";
+                }
+            }
+            
+            // Crisis Mode Strategy - Focus on survival and meeting minimums
+            class CrisisModeFitness extends FitnessStrategy {
+                calculateFitness(chromosome, context) {
+                    const { balance, workDays, violations, totalEarnings, minBalance, workDaysList } = context;
+                    
+                    // Crisis mode penalties - focus on survival
+                    const belowTargetPenalty = balance < context.targetEndingBalance ? 
+                        (context.targetEndingBalance - balance) * this.penalties.get('crisis', 'belowTarget') : 0;
+                    const aboveTargetPenalty = balance > context.targetEndingBalance ?
+                        (balance - context.targetEndingBalance) * this.penalties.get('crisis', 'aboveTarget') : 0;
+                    
+                    // Earnings and work day requirements
+                    const earningsShortfall = Math.max(0, context.requiredFlexNet - totalEarnings);
+                    
+                    // Calculate work day deficit
+                    const startDay = context.balanceEditDay ? context.balanceEditDay + 1 : 1;
+                    const availableDays = context.balanceEditDay ? (30 - context.balanceEditDay) : 30;
+                    const avgDoubleShiftEarnings = (173 + 154 + 135) / 3;
+                    const minWorkDaysNeeded = Math.max(
+                        Math.floor(availableDays * 0.9),
+                        Math.ceil(context.requiredFlexNet / avgDoubleShiftEarnings)
+                    );
+                    const actualWorkDaysAfterEdit = workDaysList.filter(d => d >= startDay).length;
+                    const workDayDeficit = Math.max(0, minWorkDaysNeeded - actualWorkDaysAfterEdit);
+                    
+                    const fitness = 
+                        violations * this.penalties.get('crisis', 'safetyViolations') +
+                        belowTargetPenalty +
+                        aboveTargetPenalty +
+                        earningsShortfall * this.penalties.get('crisis', 'earningsShortfall') +
+                        workDayDeficit * this.penalties.get('crisis', 'workDayDeficit') +
+                        (minBalance < context.minimumBalance ? 
+                            Math.abs(minBalance - context.minimumBalance) * 200 : 0);
+                    
+                    return fitness;
+                }
+                
+                debugBreakdown(chromosome, context) {
+                    const { balance, violations, totalEarnings } = context;
+                    const belowTargetPenalty = balance < context.targetEndingBalance ? 
+                        (context.targetEndingBalance - balance) * this.penalties.get('crisis', 'belowTarget') : 0;
+                    const aboveTargetPenalty = balance > context.targetEndingBalance ?
+                        (balance - context.targetEndingBalance) * this.penalties.get('crisis', 'aboveTarget') : 0;
+                    const earningsShortfall = Math.max(0, context.requiredFlexNet - totalEarnings);
+                    
+                    console.log(`  CRISIS: Below target penalty: ${belowTargetPenalty}`);
+                    console.log(`  CRISIS: Above target penalty: ${aboveTargetPenalty} (overshoot OK)`);
+                    console.log(`  CRISIS: Earnings shortfall: ${earningsShortfall * this.penalties.get('crisis', 'earningsShortfall')}`);
+                    console.log(`  CRISIS: Safety violations: ${violations * this.penalties.get('crisis', 'safetyViolations')}`);
+                }
+                
+                getDescription() {
+                    return "Crisis Mode (Survival & Requirements)";
+                }
+            }
+            
+            // Strategy Factory - Context-aware strategy selection
+            class FitnessStrategyFactory {
+                constructor() {
+                    this.penaltyRegistry = new PenaltyRegistry();
+                }
+                
+                createStrategy(context) {
+                    if (context.inCrisisMode) {
+                        return new CrisisModeFitness(this.penaltyRegistry);
+                    }
+                    return new NormalModeFitness(this.penaltyRegistry);
+                }
+                
+                // For A/B testing and comparison
+                compareStrategies(chromosome, context) {
+                    const normalStrategy = new NormalModeFitness(this.penaltyRegistry);
+                    const crisisStrategy = new CrisisModeFitness(this.penaltyRegistry);
+                    
+                    const normalFitness = normalStrategy.calculateFitness(chromosome, context);
+                    const crisisFitness = crisisStrategy.calculateFitness(chromosome, context);
+                    
+                    console.log("=== STRATEGY COMPARISON ===");
+                    console.log(`Normal Mode Fitness: ${normalFitness}`);
+                    console.log(`Crisis Mode Fitness: ${crisisFitness}`);
+                    console.log(`Selected: ${context.inCrisisMode ? 'Crisis' : 'Normal'}`);
+                    
+                    return context.inCrisisMode ? crisisFitness : normalFitness;
+                }
+            }
+            
+            // Fitness Manager - Central coordination
+            class FitnessManager {
+                constructor() {
+                    this.strategyFactory = new FitnessStrategyFactory();
+                    this.debugMode = false;
+                }
+                
+                evaluateChromosome(chromosome, context) {
+                    const strategy = this.strategyFactory.createStrategy(context);
+                    
+                    if (this.debugMode) {
+                        strategy.enableDebug();
+                    }
+                    
+                    const fitness = strategy.calculateFitness(chromosome, context);
+                    
+                    // Validate fitness value
+                    FitnessValidator.validate(fitness, strategy, context);
+                    
+                    // Debug output
+                    if (this.debugMode && Math.random() < 0.01) {
+                        console.log(`FITNESS BREAKDOWN - ${strategy.getDescription()} (${context.workDays} work days, $${context.balance.toFixed(2)} balance):`);
+                        strategy.debugBreakdown(chromosome, context);
+                        console.log(`  TOTAL FITNESS: ${fitness}`);
+                    }
+                    
+                    return fitness;
+                }
+                
+                enableDebug() {
+                    this.debugMode = true;
+                    return this;
+                }
+                
+                compareStrategies(chromosome, context) {
+                    return this.strategyFactory.compareStrategies(chromosome, context);
+                }
+            }
+            
+            // =====================================================
+            // LEGACY FITNESS FUNCTIONS (to be replaced)
+            // =====================================================
+            
             calculateNormalFitness(chromosome, balance, workDays, violations, totalEarnings, minBalance, workDaysList) {
                 // Normal mode: Minimize work days, hit target exactly, avoid consecutive work
                 const finalBalanceDiff = Math.abs(balance - this.targetEndingBalance);
@@ -974,34 +1253,25 @@
                 const largeShiftEarnings = this.shifts.large.net;
                 const inCrisisMode = deficitPerDay > largeShiftEarnings; // Need more than 1 large shift per day
                 
-                // Calculate fitness using context-appropriate function with crisis-aware constraint penalties
-                const constraintPenaltyMultiplier = inCrisisMode ? 0.01 : 10000; // Minimal constraint penalty in crisis mode
-                const fitness = inCrisisMode ? 
-                    this.calculateCrisisFitness(chromosome, balance, workDays, violations, totalEarnings, minBalance, workDaysList) + balanceConstraintViolations * constraintPenaltyMultiplier :
-                    this.calculateNormalFitness(chromosome, balance, workDays, violations, totalEarnings, minBalance, workDaysList) + balanceConstraintViolations * constraintPenaltyMultiplier;
-
-                // Context-aware debug output during regeneration
-                if (this.balanceEditDay && Math.random() < 0.01) { // Debug 1% of evaluations
-                    console.log(`FITNESS BREAKDOWN - ${inCrisisMode ? 'CRISIS' : 'NORMAL'} MODE (${workDays} work days, $${balance.toFixed(2)} balance):`);
-                    console.log(`  Balance constraint violations: ${balanceConstraintViolations * constraintPenaltyMultiplier}`);
-                    
-                    if (inCrisisMode) {
-                        const belowTargetPenalty = balance < this.targetEndingBalance ? (this.targetEndingBalance - balance) * 1000 : 0;
-                        const aboveTargetPenalty = balance > this.targetEndingBalance ? (balance - this.targetEndingBalance) * 0.1 : 0;
-                        const earningsShortfall = Math.max(0, this.requiredFlexNet - totalEarnings);
-                        console.log(`  CRISIS: Below target penalty: ${belowTargetPenalty}`);
-                        console.log(`  CRISIS: Above target penalty: ${aboveTargetPenalty} (overshoot OK)`);
-                        console.log(`  CRISIS: Earnings shortfall: ${earningsShortfall * 100}`);
-                        console.log(`  CRISIS: Safety violations: ${violations * 10000}`);
-                    } else {
-                        const finalBalanceDiff = Math.abs(balance - this.targetEndingBalance);
-                        const workDayPenalty = workDays * 30;
-                        console.log(`  NORMAL: Balance diff penalty: ${finalBalanceDiff * 20}`);
-                        console.log(`  NORMAL: Work day penalty: ${workDayPenalty}`);
-                        console.log(`  NORMAL: Safety violations: ${violations * 5000}`);
-                    }
-                    console.log(`  TOTAL FITNESS: ${fitness}`);
-                }
+                // Create context object for strategy pattern
+                const fitnessContext = {
+                    balance,
+                    workDays,
+                    violations,
+                    totalEarnings,
+                    minBalance,
+                    workDaysList,
+                    inCrisisMode,
+                    targetEndingBalance: this.targetEndingBalance,
+                    minimumBalance: this.minimumBalance,
+                    requiredFlexNet: this.requiredFlexNet,
+                    balanceEditDay: this.balanceEditDay
+                };
+                
+                // Calculate fitness using Strategy Pattern + balance constraint penalties
+                const strategyFitness = this.fitnessManager.evaluateChromosome(chromosome, fitnessContext);
+                const constraintPenaltyMultiplier = inCrisisMode ? 0.01 : 10000; // Crisis-aware constraint penalty
+                const fitness = strategyFitness + balanceConstraintViolations * constraintPenaltyMultiplier;
                 
                 return {
                     fitness: fitness,
