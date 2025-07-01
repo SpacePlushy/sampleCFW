@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Debug Balance Constraint</title>
+    <style>
+        body { font-family: monospace; margin: 20px; }
+        .result { margin: 10px 0; padding: 10px; background: #f0f0f0; }
+        .error { background: #ffe0e0; }
+        .success { background: #e0ffe0; }
+    </style>
+</head>
+<body>
+    <h1>Debug Balance Constraint Processing</h1>
+    <button onclick="runDebugTest()">Run Debug Test</button>
+    <div id="output"></div>
+
+    <script>
+        // Simplified version of the constraint processing
+        function debugBalanceConstraint() {
+            const output = document.getElementById('output');
+            output.innerHTML = '';
+            
+            function log(msg, isError = false) {
+                const div = document.createElement('div');
+                div.className = 'result' + (isError ? ' error' : '');
+                div.textContent = msg;
+                output.appendChild(div);
+            }
+            
+            // Test parameters
+            const startingBalance = 90.50;
+            const targetBalance = 500; // Day 10 target
+            const day = 10;
+            
+            // Mock expenses for days 1-10
+            const expenses = {
+                1: 177,
+                2: 8,
+                3: 0,
+                4: 0,
+                5: 132.50,
+                6: 0,
+                7: 0,
+                8: 20.49,
+                9: 0,
+                10: 230
+            };
+            
+            // Calculate what balance we'd have with no work
+            let balanceNoWork = startingBalance;
+            for (let d = 1; d <= day; d++) {
+                balanceNoWork -= expenses[d] || 0;
+            }
+            
+            log(`Starting balance: $${startingBalance}`);
+            log(`Target balance on day ${day}: $${targetBalance}`);
+            log(`Balance with no work: $${balanceNoWork.toFixed(2)}`);
+            log(`Total expenses days 1-${day}: $${Object.values(expenses).reduce((a,b) => a+b, 0).toFixed(2)}`);
+            
+            // Calculate required earnings
+            const totalExpenses = Object.values(expenses).reduce((a,b) => a+b, 0);
+            const requiredEarnings = targetBalance - startingBalance + totalExpenses;
+            
+            log(`Required earnings: $${requiredEarnings.toFixed(2)}`);
+            
+            // Calculate required earnings with the formula from processBalanceConstraints
+            let prevBalance = startingBalance;
+            for (let d = 1; d < day; d++) {
+                prevBalance -= expenses[d] || 0;
+            }
+            
+            log(`Previous balance (day 9): $${prevBalance.toFixed(2)}`);
+            
+            const requiredEarningsDay10 = targetBalance - prevBalance + expenses[10];
+            log(`Required earnings on day 10: $${requiredEarningsDay10.toFixed(2)}`);
+            
+            // But this is wrong! We need earnings spread across days 1-10, not just day 10
+            log('---');
+            log('The issue: We calculate earnings needed on day 10, but we need to distribute work across days 1-9!');
+            
+            // Correct approach: We need to ensure the chromosome generates enough earnings
+            // across days 1-10 to reach the target
+            const deficit = targetBalance - balanceNoWork;
+            log(`Total deficit to cover: $${deficit.toFixed(2)}`);
+            
+            // Example distribution
+            const avgEarningsPerDay = deficit / day;
+            log(`Average earnings needed per day: $${avgEarningsPerDay.toFixed(2)}`);
+            
+            return { requiredEarnings, requiredEarningsDay10, deficit };
+        }
+        
+        function runDebugTest() {
+            debugBalanceConstraint();
+        }
+    </script>
+</body>
+</html>

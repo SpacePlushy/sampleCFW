@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automated Balance Persistence Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-status {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .test-running {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .test-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .test-failure {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .log-container {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            font-family: monospace;
+            font-size: 14px;
+            margin: 5px 0;
+            padding: 5px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .log-success {
+            color: #28a745;
+        }
+        .log-error {
+            color: #dc3545;
+        }
+        .log-info {
+            color: #17a2b8;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        iframe {
+            width: 100%;
+            height: 600px;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>Automated Balance Persistence Test</h1>
+        <p>This will automatically test the balance editing and regeneration functionality.</p>
+        
+        <div>
+            <button id="runTestBtn" onclick="runFullTest()">Run Automated Test</button>
+            <button onclick="clearLogs()">Clear Logs</button>
+        </div>
+        
+        <div id="testStatus" class="test-status" style="display: none;"></div>
+        
+        <div class="log-container">
+            <div id="logOutput"></div>
+        </div>
+        
+        <iframe id="testFrame" src="index.html" style="display: none;"></iframe>
+    </div>
+
+    <script>
+        let testFrame;
+        let testWindow;
+        let logs = [];
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+            const logEntry = { timestamp, message, type };
+            logs.push(logEntry);
+            
+            const logDiv = document.getElementById('logOutput');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${timestamp}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+        
+        function clearLogs() {
+            logs = [];
+            document.getElementById('logOutput').innerHTML = '';
+            document.getElementById('testStatus').style.display = 'none';
+        }
+        
+        function updateStatus(message, type = 'running') {
+            const statusDiv = document.getElementById('testStatus');
+            statusDiv.textContent = message;
+            statusDiv.className = `test-status test-${type}`;
+            statusDiv.style.display = 'block';
+        }
+        
+        async function waitFor(condition, timeout = 30000, checkInterval = 100) {
+            const startTime = Date.now();
+            while (Date.now() - startTime < timeout) {
+                if (condition()) {
+                    return true;
+                }
+                await new Promise(resolve => setTimeout(resolve, checkInterval));
+            }
+            throw new Error('Timeout waiting for condition');
+        }
+        
+        async function runFullTest() {
+            const btn = document.getElementById('runTestBtn');
+            btn.disabled = true;
+            clearLogs();
+            
+            updateStatus('Test running...', 'running');
+            log('Starting automated balance persistence test', 'info');
+            
+            try {
+                // Show iframe
+                testFrame = document.getElementById('testFrame');
+                testFrame.style.display = 'block';
+                testWindow = testFrame.contentWindow;
+                
+                // Wait for frame to load
+                await waitFor(() => testWindow.document.getElementById('optimizeBtn') !== null);
+                log('✓ Test page loaded successfully', 'success');
+                
+                // Test 1: Initial optimization
+                log('Test 1: Running initial optimization...', 'info');
+                testWindow.document.getElementById('startingBalance').value = '90.50';
+                testWindow.document.getElementById('targetBalance').value = '490.50';
+                testWindow.document.getElementById('minimumBalance').value = '0';
+                testWindow.document.getElementById('populationSize').value = '100';
+                testWindow.document.getElementById('generations').value = '300';
+                
+                testWindow.document.getElementById('optimizeBtn').click();
+                
+                // Wait for optimization to complete
+                await waitFor(() => testWindow.document.getElementById('progress').style.display === 'none', 60000);
+                log('✓ Initial optimization complete', 'success');
+                
+                // Test 2: Edit balance
+                log('Test 2: Editing balance for day 10...', 'info');
+                
+                const balanceCell = testWindow.document.querySelector('td[data-day="10"][data-field="balance"]');
+                const originalBalance = parseFloat(balanceCell.textContent.replace('$', ''));
+                log(`  Original balance: $${originalBalance.toFixed(2)}`, 'info');
+                
+                // Simulate editing
+                balanceCell.focus();
+                balanceCell.textContent = '750';
+                testWindow.handleCellEdit(balanceCell);
+                
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Verify edit was tracked
+                if (!testWindow.editedCells.has('10-balance')) {
+                    throw new Error('Balance edit was not tracked in editedCells');
+                }
+                
+                const editInfo = testWindow.editedCells.get('10-balance');
+                log(`✓ Balance edit tracked: $${editInfo.originalValue.toFixed(2)} → $${editInfo.newValue.toFixed(2)}`, 'success');
+                
+                // Test 3: Check cascading
+                log('Test 3: Verifying balance cascade...', 'info');
+                let cascadeCount = 0;
+                for (let day = 11; day <= 15; day++) {
+                    const cell = testWindow.document.querySelector(`td[data-day="${day}"][data-field="balance"]`);
+                    if (cell.classList.contains('edited')) {
+                        cascadeCount++;
+                    }
+                }
+                log(`✓ ${cascadeCount} subsequent days updated`, 'success');
+                
+                // Test 4: Regenerate
+                log('Test 4: Regenerating with balance constraint...', 'info');
+                
+                // Check constraints before regeneration
+                const constraintsBefore = await testWindow.regenerateWithEdits.toString();
+                log('  Preparing constraints for regeneration...', 'info');
+                
+                testWindow.regenerateWithEdits();
+                
+                // Wait for regeneration
+                await waitFor(() => testWindow.document.getElementById('progress').style.display === 'none', 60000);
+                log('✓ Regeneration complete', 'success');
+                
+                // Test 5: Verify persistence
+                log('Test 5: Verifying balance persistence...', 'info');
+                
+                const regeneratedCell = testWindow.document.querySelector('td[data-day="10"][data-field="balance"]');
+                const regeneratedBalance = parseFloat(regeneratedCell.textContent.replace('$', ''));
+                
+                log(`  Regenerated balance: $${regeneratedBalance.toFixed(2)}`, 'info');
+                log(`  Expected balance: $750.00`, 'info');
+                
+                const difference = Math.abs(regeneratedBalance - 750);
+                log(`  Difference: $${difference.toFixed(2)}`, 'info');
+                
+                if (difference < 0.01) {
+                    log('✅ TEST PASSED! Balance was preserved during regeneration.', 'success');
+                    updateStatus('All tests passed!', 'success');
+                } else {
+                    throw new Error(`Balance not preserved! Expected $750.00, got $${regeneratedBalance.toFixed(2)}`);
+                }
+                
+            } catch (error) {
+                log(`❌ TEST FAILED: ${error.message}`, 'error');
+                updateStatus(`Test failed: ${error.message}`, 'failure');
+                
+                // Log debug information
+                if (testWindow && testWindow.editedCells) {
+                    log('Debug: Current edited cells:', 'info');
+                    testWindow.editedCells.forEach((value, key) => {
+                        log(`  ${key}: ${JSON.stringify(value)}`, 'info');
+                    });
+                }
+            } finally {
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

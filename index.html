@@ -1,0 +1,2308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monthly Financial Schedule Optimizer</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .controls {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+        label {
+            display: inline-block;
+            width: 250px;
+            font-weight: bold;
+            color: #333;
+        }
+        input {
+            width: 150px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 40px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 18px;
+            margin-top: 20px;
+            width: 100%;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .progress {
+            margin: 20px 0;
+            padding: 20px;
+            background: #e9ecef;
+            border-radius: 8px;
+            display: none;
+        }
+        .progress h4 {
+            margin-top: 0;
+        }
+        #progressBar {
+            width: 100%;
+            background: #e0e0e0;
+            height: 25px;
+            border-radius: 12px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        #progressFill {
+            width: 0%;
+            background: #007bff;
+            height: 100%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        .results {
+            margin-top: 30px;
+            display: none;
+        }
+        .summary {
+            background: #d4edda;
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        .summary h3 {
+            margin-top: 0;
+            color: #155724;
+        }
+        .summary p {
+            margin: 10px 0;
+            font-size: 18px;
+        }
+        .summary strong {
+            color: #155724;
+        }
+        .schedule-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+        }
+        .schedule-table th, .schedule-table td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        .schedule-table td.editable {
+            cursor: text;
+            position: relative;
+        }
+        .schedule-table td.editable:hover {
+            background-color: #f0f8ff !important;
+            outline: 1px dashed #007bff;
+        }
+        .schedule-table td.editable:focus {
+            background-color: #fff !important;
+            outline: 2px solid #007bff;
+            box-shadow: 0 0 5px rgba(0,123,255,0.3);
+        }
+        .schedule-table td.edited {
+            background-color: #e3f2fd !important;
+            font-weight: bold;
+        }
+        .schedule-table td.edited::after {
+            content: "✏️";
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            font-size: 12px;
+        }
+        .schedule-table th {
+            background: #007bff;
+            color: white;
+            font-weight: bold;
+        }
+        .schedule-table tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+        .work-day {
+            background: #fff3cd !important;
+        }
+        .low-balance {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .mom-deposit {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .regenerate-section {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            display: none;
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateY(100px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        .regenerate-section h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        .regenerate-section p {
+            margin: 5px 0;
+            font-size: 14px;
+            color: #666;
+        }
+        .regenerate-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+            width: 100%;
+            transition: background 0.3s;
+        }
+        .regenerate-btn:hover {
+            background: #218838;
+        }
+        .cancel-edits-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 5px;
+            width: 100%;
+        }
+        .cancel-edits-btn:hover {
+            background: #5a6268;
+        }
+        .edit-instructions {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .edit-instructions h4 {
+            margin: 0 0 10px 0;
+            color: #495057;
+        }
+        .edit-instructions ul {
+            margin: 5px 0;
+            padding-left: 20px;
+        }
+        .edit-instructions li {
+            margin: 5px 0;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Monthly Financial Schedule Optimizer</h1>
+        
+        <div class="controls">
+            <h3>Configuration</h3>
+            <div class="control-group">
+                <label>Starting Balance:</label>
+                <input type="number" id="startingBalance" value="90.50" step="0.01">
+            </div>
+            <div class="control-group">
+                <label>Target Ending Balance:</label>
+                <input type="number" id="targetBalance" value="490.50" step="0.01">
+            </div>
+            <div class="control-group">
+                <label>Minimum Balance:</label>
+                <input type="number" id="minimumBalance" value="0" step="0.01">
+            </div>
+            <div class="control-group">
+                <label>Population Size:</label>
+                <input type="number" id="populationSize" value="200" min="50" max="500">
+            </div>
+            <div class="control-group">
+                <label>Generations:</label>
+                <input type="number" id="generations" value="1000" min="100" max="2000">
+            </div>
+            <button id="optimizeBtn" onclick="runOptimization()">Optimize Schedule</button>
+        </div>
+        
+        <div id="progress" class="progress">
+            <h4>Optimization Progress</h4>
+            <div id="progressText">Initializing genetic algorithm...</div>
+            <div id="progressBar">
+                <div id="progressFill"></div>
+            </div>
+        </div>
+        
+        <div id="results" class="results">
+            <div class="summary">
+                <h3>Optimization Results</h3>
+                <div id="summaryContent"></div>
+            </div>
+            
+            <div id="editInstructions" class="edit-instructions">
+                <h4>✏️ Schedule Editing Enabled</h4>
+                <ul>
+                    <li>Click on any Earnings, Expenses, Balance, or Notes cell to edit</li>
+                    <li>Balance will auto-recalculate when you change earnings or expenses</li>
+                    <li>Press Enter or click outside to save changes</li>
+                    <li>Modified cells are highlighted in blue with a pencil icon</li>
+                    <li>Click "Regenerate with Manual Edits" to optimize around your changes</li>
+                </ul>
+            </div>
+            
+            <h3>Monthly Schedule</h3>
+            <table class="schedule-table">
+                <thead>
+                    <tr>
+                        <th>Day</th>
+                        <th>Shifts</th>
+                        <th>Earnings</th>
+                        <th>Expenses</th>
+                        <th>Balance</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody id="scheduleBody"></tbody>
+            </table>
+        </div>
+        
+        <div id="regenerateSection" class="regenerate-section">
+            <h4>📝 Schedule Modified</h4>
+            <p id="editCount">0 cells edited</p>
+            <p>Your manual changes will be preserved when regenerating.</p>
+            <button class="regenerate-btn" onclick="regenerateWithEdits()">🔄 Regenerate with Manual Edits</button>
+            <button class="cancel-edits-btn" onclick="cancelEdits()">Cancel All Edits</button>
+        </div>
+    </div>
+
+    <script>
+        // Enhanced Genetic Algorithm Implementation based on TypeScript version
+        class ImprovedGeneticOptimizer {
+            constructor(config = {}) {
+                this.startingBalance = config.startingBalance || 90.50;
+                this.targetEndingBalance = config.targetEndingBalance || 490.50;
+                this.minimumBalance = config.minimumBalance || 0;
+                this.populationSize = config.populationSize || 200;
+                this.generations = config.generations || 1000;
+                this.mutationRate = 0.15;
+                this.eliteSize = Math.max(30, Math.floor(this.populationSize * 0.2)); // 20% elite to preserve good solutions
+                this.tournamentSize = 7;
+                this.fitnessHistory = [];
+                
+                // Manual constraints for regeneration
+                this.manualConstraints = config.manualConstraints || {};
+                
+                // Balance edit handling
+                this.balanceEditDay = this.manualConstraints.balanceEditDay || null;
+                this.newStartingBalance = this.manualConstraints.newStartingBalance || null;
+                
+                // If there's a balance edit, we're only optimizing from the day AFTER the edit
+                if (this.balanceEditDay) {
+                    this.startDay = this.balanceEditDay + 1;  // Start AFTER the balance edit day
+                    this.effectiveStartingBalance = this.newStartingBalance;
+                    // Balance edit mode configured
+                } else {
+                    this.startDay = 1;
+                    this.effectiveStartingBalance = this.startingBalance;
+                }
+                
+                // Define shifts
+                this.shifts = {
+                    large: { gross: 94.50, net: 86.50 },
+                    medium: { gross: 75.50, net: 67.50 },
+                    small: { gross: 64.00, net: 56.00 }
+                };
+                
+                // Define all expenses
+                this.expenses = [
+                    { day: 1, name: "Auto Insurance", amount: 177 },
+                    { day: 2, name: "YouTube Premium", amount: 8 },
+                    { day: 5, name: "Groceries", amount: 112.50 },
+                    { day: 5, name: "Weed", amount: 20 },
+                    { day: 8, name: "Paramount Plus", amount: 12 },
+                    { day: 8, name: "iPad AppleCare", amount: 8.49 },
+                    { day: 10, name: "Streaming Services", amount: 230 },
+                    { day: 11, name: "Cat Food", amount: 40 },
+                    { day: 12, name: "Groceries", amount: 112.50 },
+                    { day: 12, name: "Weed", amount: 20 },
+                    { day: 14, name: "iPad AppleCare", amount: 8.49 },
+                    { day: 16, name: "Cat Food", amount: 40 },
+                    { day: 17, name: "Car Payment", amount: 463 },
+                    { day: 19, name: "Groceries", amount: 112.50 },
+                    { day: 19, name: "Weed", amount: 20 },
+                    { day: 22, name: "Cell Phone", amount: 177 },
+                    { day: 23, name: "Cat Food", amount: 40 },
+                    { day: 24, name: "AI Subscription", amount: 220 },
+                    { day: 25, name: "Electric", amount: 139 },
+                    { day: 25, name: "Ring Subscription", amount: 10 },
+                    { day: 26, name: "Groceries", amount: 112.50 },
+                    { day: 26, name: "Weed", amount: 20 },
+                    { day: 28, name: "iPhone AppleCare", amount: 13.49 },
+                    { day: 29, name: "Internet", amount: 30 },
+                    { day: 29, name: "Cat Food", amount: 40 },
+                    { day: 30, name: "Rent", amount: 1636 }
+                ];
+                
+                // Mom deposits
+                this.momDeposits = [
+                    { day: 11, amount: 1356 },
+                    { day: 25, amount: 1356 }
+                ];
+                
+                // Preprocess data
+                this.expensesByDay = new Array(31).fill(0);
+                this.depositsByDay = new Array(31).fill(0);
+                
+                for (let exp of this.expenses) {
+                    this.expensesByDay[exp.day] += exp.amount;
+                }
+                
+                for (let dep of this.momDeposits) {
+                    this.depositsByDay[dep.day] = dep.amount;
+                }
+                
+                // Apply manual expense constraints
+                if (this.manualConstraints) {
+                    Object.keys(this.manualConstraints).forEach(day => {
+                        const dayNum = parseInt(day);
+                        if (this.manualConstraints[day].fixedExpenses !== undefined) {
+                            this.expensesByDay[dayNum] = this.manualConstraints[day].fixedExpenses;
+                        }
+                    });
+                }
+                
+                // Process balance constraints to determine required earnings
+                this.processBalanceConstraints();
+                
+                // Calculate requirements
+                // If we have a balance edit, only calculate expenses from that day forward
+                let relevantExpenses = 0;
+                let relevantMomIncome = 0;
+                
+                if (this.balanceEditDay) {
+                    // Only count expenses and income from AFTER the edit day
+                    for (let d = this.balanceEditDay + 1; d <= 30; d++) {
+                        relevantExpenses += this.expensesByDay[d] || 0;
+                        relevantMomIncome += this.depositsByDay[d] || 0;
+                    }
+                    this.requiredFlexNet = relevantExpenses + this.targetEndingBalance - this.effectiveStartingBalance - relevantMomIncome;
+                    
+                    // Log the calculation for debugging
+                    // Balance edit calculation completed
+                    
+                    // Ensure we have a reasonable minimum
+                    if (this.requiredFlexNet < 0) {
+                        console.warn('Required earnings is negative, setting to 0');
+                        this.requiredFlexNet = 0;
+                    }
+                } else {
+                    // Normal calculation for full month
+                    const totalExpenses = this.expensesByDay.reduce((sum, exp) => sum + exp, 0);
+                    const totalMomIncome = this.momDeposits.reduce((sum, dep) => sum + dep.amount, 0);
+                    this.requiredFlexNet = totalExpenses + this.targetEndingBalance - this.startingBalance - totalMomIncome;
+                }
+                
+                // Identify critical days where balance might go low
+                this.criticalDays = this.identifyCriticalDays();
+                
+                // ImprovedGeneticOptimizer initialized
+            }
+            
+            processBalanceConstraints() {
+                if (!this.manualConstraints) return;
+                
+                // Find days with fixed balance constraints
+                const balanceConstraints = [];
+                Object.keys(this.manualConstraints).forEach(day => {
+                    const dayNum = parseInt(day);
+                    if (this.manualConstraints[day].fixedBalance !== undefined) {
+                        balanceConstraints.push({
+                            day: dayNum,
+                            balance: this.manualConstraints[day].fixedBalance
+                        });
+                    }
+                });
+                
+                // Sort by day
+                balanceConstraints.sort((a, b) => a.day - b.day);
+                
+                // For each balance constraint, calculate required earnings
+                balanceConstraints.forEach(constraint => {
+                    const day = constraint.day;
+                    const targetBalance = constraint.balance;
+                    
+                    // Calculate what the previous balance would be
+                    let prevBalance = this.startingBalance;
+                    for (let d = 1; d < day; d++) {
+                        // Add any existing shifts (if already constrained)
+                        if (this.manualConstraints[d] && this.manualConstraints[d].shifts) {
+                            const shifts = this.manualConstraints[d].shifts;
+                            if (shifts) {
+                                const shiftArray = shifts.split('+');
+                                for (let shift of shiftArray) {
+                                    prevBalance += this.shifts[shift].net;
+                                }
+                            }
+                        } else if (this.manualConstraints[d] && this.manualConstraints[d].fixedEarnings !== undefined) {
+                            prevBalance += this.manualConstraints[d].fixedEarnings;
+                        }
+                        
+                        // Add deposits and subtract expenses
+                        prevBalance += this.depositsByDay[d] || 0;
+                        prevBalance -= this.expensesByDay[d] || 0;
+                    }
+                    
+                    // Calculate required earnings for this day
+                    const deposit = this.depositsByDay[day] || 0;
+                    const expenses = this.expensesByDay[day] || 0;
+                    const requiredEarnings = targetBalance - prevBalance - deposit + expenses;
+                    
+                    // Only set earnings constraint if we don't already have one
+                    if (!this.manualConstraints[day].shifts && 
+                        this.manualConstraints[day].fixedEarnings === undefined) {
+                        
+                        // Find the best shift combination to match required earnings
+                        if (requiredEarnings <= 0) {
+                            this.manualConstraints[day].shifts = null; // Day off
+                        } else if (Math.abs(requiredEarnings - 56) < 5) {
+                            this.manualConstraints[day].shifts = 'small';
+                        } else if (Math.abs(requiredEarnings - 67.5) < 5) {
+                            this.manualConstraints[day].shifts = 'medium';
+                        } else if (Math.abs(requiredEarnings - 86.5) < 5) {
+                            this.manualConstraints[day].shifts = 'large';
+                        } else if (Math.abs(requiredEarnings - 112) < 5) {
+                            this.manualConstraints[day].shifts = 'small+small';
+                        } else if (Math.abs(requiredEarnings - 123.5) < 5) {
+                            this.manualConstraints[day].shifts = 'small+medium';
+                        } else if (Math.abs(requiredEarnings - 135) < 5) {
+                            this.manualConstraints[day].shifts = 'medium+medium';
+                        } else {
+                            // Use fixed earnings if no shift matches well
+                            this.manualConstraints[day].fixedEarnings = requiredEarnings;
+                        }
+                    }
+                });
+            }
+            
+            identifyCriticalDays() {
+                const criticalDays = [];
+                let runningBalance = this.effectiveStartingBalance;
+                
+                // Start from the appropriate day based on balance edit
+                const startDay = this.balanceEditDay ? this.balanceEditDay + 1 : 1;
+                
+                for (let day = startDay; day <= 30; day++) {
+                    runningBalance += this.depositsByDay[day] || 0;
+                    runningBalance -= this.expensesByDay[day] || 0;
+                    
+                    // Mark days where balance would be low without work
+                    if (runningBalance < this.minimumBalance + 200) {
+                        criticalDays.push(day);
+                    }
+                }
+                
+                return criticalDays;
+            }
+            
+            generateChromosome(forceAggressive = false) {
+                const chromosome = new Array(31).fill(null);
+                
+                // Apply manual constraints first
+                if (this.manualConstraints) {
+                    Object.keys(this.manualConstraints).forEach(day => {
+                        const dayNum = parseInt(day);
+                        if (this.manualConstraints[day].shifts !== undefined) {
+                            chromosome[dayNum] = this.manualConstraints[day].shifts;
+                        } else if (this.manualConstraints[day].fixedEarnings !== undefined) {
+                            // Try to match earnings to shift types
+                            const earnings = this.manualConstraints[day].fixedEarnings;
+                            if (earnings === 0) {
+                                chromosome[dayNum] = null;
+                            } else if (Math.abs(earnings - 56) < 1) {
+                                chromosome[dayNum] = 'small';
+                            } else if (Math.abs(earnings - 67.5) < 1) {
+                                chromosome[dayNum] = 'medium';
+                            } else if (Math.abs(earnings - 86.5) < 1) {
+                                chromosome[dayNum] = 'large';
+                            } else if (Math.abs(earnings - 112) < 1) {
+                                chromosome[dayNum] = 'small+small';
+                            } else if (Math.abs(earnings - 123.5) < 1) {
+                                chromosome[dayNum] = 'small+medium';
+                            } else if (Math.abs(earnings - 135) < 1) {
+                                chromosome[dayNum] = 'medium+medium';
+                            } else {
+                                // Custom earnings - find closest match
+                                chromosome[dayNum] = 'medium'; // Default to medium
+                            }
+                        }
+                    });
+                }
+                
+                // Calculate work probability based on financial needs
+                const avgEarnings = (this.shifts.large.net + this.shifts.medium.net + this.shifts.small.net) / 3;
+                const estimatedWorkDays = Math.ceil(this.requiredFlexNet / avgEarnings);
+                
+                // Adjust for partial month if there's a balance edit
+                const availableDays = this.balanceEditDay ? (30 - this.balanceEditDay) : 30;
+                let baseWorkProbability = Math.min(0.9, (estimatedWorkDays / availableDays) * 1.2);
+                
+                // Detect crisis mode - when single shifts aren't enough
+                const maxPossibleSingleShifts = availableDays * this.shifts.large.net;
+                const maxPossibleDoubleShifts = availableDays * (this.shifts.large.net * 2); // Assume large+large every day
+                const inCrisisMode = this.requiredFlexNet > maxPossibleSingleShifts;
+                const impossibleTarget = this.requiredFlexNet > maxPossibleDoubleShifts;
+                
+                // Force higher work probability in crisis mode
+                if (inCrisisMode) {
+                    baseWorkProbability = 0.99; // Force almost all days to work in crisis
+                    
+                    // Crisis mode active during regeneration
+                }
+                
+                // Determine the start day for generating shifts
+                const startDay = this.balanceEditDay ? this.balanceEditDay + 1 : 1;
+                
+                // Suppress chromosome generation logging
+                
+                // First, try to cover critical days with appropriate shifts
+                for (const criticalDay of this.criticalDays) {
+                    const workDay = Math.max(startDay, criticalDay - 3); // Work a few days before, but not before balance edit
+                    if (workDay <= 30 && !chromosome[workDay]) {
+                        if (inCrisisMode) {
+                            // In crisis mode, use highest-earning double shifts for critical days
+                            const rand = Math.random();
+                            if (rand < 0.4) {
+                                chromosome[workDay] = 'large+large';      // $173
+                            } else if (rand < 0.8) {
+                                chromosome[workDay] = Math.random() < 0.5 ? 'medium+large' : 'large+medium'; // $154
+                            } else {
+                                chromosome[workDay] = 'medium+medium';     // $135
+                            }
+                        } else {
+                            // Normal mode: prefer larger single shifts for critical days
+                            const shiftType = Math.random() < 0.6 ? 'large' : 
+                                            Math.random() < 0.8 ? 'medium' : 'small';
+                            chromosome[workDay] = shiftType;
+                        }
+                    }
+                }
+                
+                // Calculate minimum work days needed
+                let minWorkDaysNeeded = 0;
+                if (inCrisisMode) {
+                    // In crisis, calculate based on required earnings and double shift capacity
+                    const avgDoubleShiftEarnings = (173 + 154 + 135) / 3; // Average of large+large, medium+large, medium+medium
+                    minWorkDaysNeeded = Math.max(
+                        Math.floor(availableDays * 0.9), // Work 90% of days minimum in crisis
+                        Math.ceil(this.requiredFlexNet / avgDoubleShiftEarnings) // Based on realistic double shift earnings
+                    );
+                    // Ensure we don't exceed available days
+                    minWorkDaysNeeded = Math.min(minWorkDaysNeeded, availableDays);
+                } else {
+                    minWorkDaysNeeded = Math.ceil(this.requiredFlexNet / this.shifts.large.net);
+                }
+                
+                // Count work days already scheduled
+                let scheduledWorkDays = 0;
+                for (let d = startDay; d <= 30; d++) {
+                    if (chromosome[d]) scheduledWorkDays++;
+                }
+                
+                // Fill remaining days (only from startDay onward)
+                for (let day = startDay; day <= 30; day++) {
+                    if (chromosome[day] !== undefined) continue; // Skip if already set by constraints
+                    
+                    // Force work if we haven't met minimum
+                    const remainingDays = 30 - day + 1;
+                    const remainingWorkDaysNeeded = minWorkDaysNeeded - scheduledWorkDays;
+                    const mustWork = remainingWorkDaysNeeded >= remainingDays;
+                    
+                    // In crisis mode, be much more aggressive about working
+                    let workProbability;
+                    if (mustWork) {
+                        workProbability = 1.0; // Must work to meet minimum
+                    } else if (inCrisisMode) {
+                        workProbability = 0.95; // Very high probability in crisis mode
+                    } else {
+                        // Add variance for population diversity in normal mode
+                        const variance = (Math.random() - 0.5) * 0.3;
+                        workProbability = Math.max(0.1, Math.min(0.95, baseWorkProbability + variance));
+                    }
+                    
+                    if (Math.random() < workProbability) {
+                        scheduledWorkDays++;
+                        
+                        if (inCrisisMode) {
+                            // Force high-earning double shifts in crisis mode
+                            const highEarningShifts = [
+                                'large+large',      // $173
+                                'medium+large',     // $154  
+                                'large+medium',     // $154
+                                'medium+medium'     // $135
+                            ];
+                            const rand = Math.random();
+                            if (rand < 0.3) {
+                                chromosome[day] = 'large+large';
+                            } else if (rand < 0.7) {
+                                chromosome[day] = Math.random() < 0.5 ? 'medium+large' : 'large+medium';
+                            } else {
+                                chromosome[day] = 'medium+medium';
+                            }
+                        } else {
+                            // Normal mode: Choose shift type with preference for medium shifts
+                            const rand = Math.random();
+                            if (rand < 0.2) {
+                                chromosome[day] = 'small';
+                            } else if (rand < 0.7) {
+                                chromosome[day] = 'medium';
+                            } else {
+                                chromosome[day] = 'large';
+                            }
+                            
+                            // Sometimes use double shifts for efficiency
+                            const doubleShiftProbability = 0.3;
+                            if (Math.random() < doubleShiftProbability && chromosome[day] !== 'large') {
+                                const secondShift = Math.random() < 0.5 ? 'small' : 'medium';
+                                chromosome[day] = chromosome[day] + '+' + secondShift;
+                            }
+                        }
+                    }
+                }
+                
+                // Final validation: ensure minimum work days are met in crisis mode
+                if (inCrisisMode) {
+                    let actualWorkDays = 0;
+                    for (let d = startDay; d <= 30; d++) {
+                        if (chromosome[d]) actualWorkDays++;
+                    }
+                    
+                    // If we still don't have enough work days, force additional work days
+                    if (actualWorkDays < minWorkDaysNeeded) {
+                        const workDaysToAdd = minWorkDaysNeeded - actualWorkDays;
+                        const availableDaysToWork = [];
+                        
+                        // Find days that aren't working
+                        for (let d = startDay; d <= 30; d++) {
+                            if (!chromosome[d] && (!this.manualConstraints || !this.manualConstraints[d])) {
+                                availableDaysToWork.push(d);
+                            }
+                        }
+                        
+                        // Add work days starting from the earliest available days
+                        for (let i = 0; i < workDaysToAdd && i < availableDaysToWork.length; i++) {
+                            const day = availableDaysToWork[i];
+                            // Use high-earning double shifts
+                            const rand = Math.random();
+                            if (rand < 0.4) {
+                                chromosome[day] = 'large+large';
+                            } else if (rand < 0.8) {
+                                chromosome[day] = Math.random() < 0.5 ? 'medium+large' : 'large+medium';
+                            } else {
+                                chromosome[day] = 'medium+medium';
+                            }
+                        }
+                        
+                        // Chromosome repair completed for crisis mode
+                    }
+                }
+                
+                return chromosome;
+            }
+            
+            generateHighWorkChromosome() {
+                const chromosome = new Array(31).fill(null);
+                
+                // Apply manual constraints first
+                if (this.manualConstraints) {
+                    Object.keys(this.manualConstraints).forEach(day => {
+                        const dayNum = parseInt(day);
+                        if (this.manualConstraints[day].shifts !== undefined) {
+                            chromosome[dayNum] = this.manualConstraints[day].shifts;
+                        }
+                    });
+                }
+                
+                const startDay = this.balanceEditDay ? this.balanceEditDay + 1 : 1;
+                const availableDays = this.balanceEditDay ? (30 - this.balanceEditDay) : 30;
+                
+                // Calculate minimum work days needed for crisis mode
+                const avgDoubleShiftEarnings = (173 + 154 + 135) / 3;
+                const minWorkDaysNeeded = Math.max(
+                    Math.floor(availableDays * 0.95), // Work 95% of days for seeded chromosomes
+                    Math.ceil(this.requiredFlexNet / avgDoubleShiftEarnings)
+                );
+                
+                // Force work on most days with high-earning double shifts
+                let workDaysScheduled = 0;
+                for (let day = startDay; day <= 30; day++) {
+                    if (chromosome[day] !== undefined && chromosome[day] !== null) {
+                        workDaysScheduled++; // Count existing work days
+                        continue; // Skip if already set by constraints
+                    }
+                    
+                    if (workDaysScheduled < minWorkDaysNeeded) {
+                        // Force high-earning double shifts
+                        const rand = Math.random();
+                        if (rand < 0.5) {
+                            chromosome[day] = 'large+large';      // $173
+                        } else if (rand < 0.8) {
+                            chromosome[day] = Math.random() < 0.5 ? 'medium+large' : 'large+medium'; // $154
+                        } else {
+                            chromosome[day] = 'medium+medium';     // $135
+                        }
+                        workDaysScheduled++;
+                    } else {
+                        // Allow some days off for the remaining days
+                        if (Math.random() < 0.2) {
+                            chromosome[day] = null; // 20% chance of day off
+                        } else {
+                            chromosome[day] = 'medium+medium'; // Still work most remaining days
+                            workDaysScheduled++;
+                        }
+                    }
+                }
+                
+                return chromosome;
+            }
+            
+            calculateNormalFitness(chromosome, balance, workDays, violations, totalEarnings, minBalance, workDaysList) {
+                // Normal mode: Minimize work days, hit target exactly, avoid consecutive work
+                const finalBalanceDiff = Math.abs(balance - this.targetEndingBalance);
+                const workDayPenalty = workDays * 30; // Minimize work days
+                
+                // Calculate consecutive work penalty
+                const gaps = [];
+                for (let i = 1; i < workDaysList.length; i++) {
+                    gaps.push(workDaysList[i] - workDaysList[i-1]);
+                }
+                const consecutiveDays = gaps.filter(g => g === 1).length;
+                const consecutivePenalty = consecutiveDays * 75; // Avoid consecutive work
+                
+                // Calculate work distribution variance
+                let gapVariance = 0;
+                if (gaps.length > 0) {
+                    const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+                    gapVariance = gaps.reduce((sum, gap) => sum + Math.pow(gap - avgGap, 2), 0) / gaps.length;
+                }
+                
+                // Manual constraint violations
+                let balanceConstraintViolations = 0;
+                if (this.manualConstraints) {
+                    for (const day in this.manualConstraints) {
+                        if (this.manualConstraints[day].fixedBalance !== undefined) {
+                            // This will be calculated in the main evaluation loop
+                        }
+                    }
+                }
+                
+                return violations * 5000 +                     // Safety: minimum balance violations
+                       finalBalanceDiff * 20 +                 // Precision: hit target exactly
+                       workDayPenalty +                        // Efficiency: minimize work
+                       consecutivePenalty +                    // Wellness: avoid burnout
+                       Math.sqrt(gapVariance) * 50 +           // Distribution: even spacing
+                       (minBalance < this.minimumBalance ? 
+                           Math.abs(minBalance - this.minimumBalance) * 100 : 0); // Minimum balance safety
+            }
+            
+            calculateCrisisFitness(chromosome, balance, workDays, violations, totalEarnings, minBalance, workDaysList) {
+                // Crisis mode: Guarantee survival, overshoot acceptable, maximize work
+                const belowTargetPenalty = balance < this.targetEndingBalance ? 
+                    (this.targetEndingBalance - balance) * 1000 : 0; // Heavy penalty for insufficient funds
+                const aboveTargetPenalty = balance > this.targetEndingBalance ?
+                    (balance - this.targetEndingBalance) * 0.1 : 0;  // Tiny penalty for overshoot - overshoot is OK!
+                
+                // Penalty for insufficient earnings
+                const earningsShortfall = Math.max(0, this.requiredFlexNet - totalEarnings);
+                
+                // Penalty for insufficient work days in crisis
+                const startDay = this.balanceEditDay ? this.balanceEditDay + 1 : 1;
+                const availableDays = this.balanceEditDay ? (30 - this.balanceEditDay) : 30;
+                const avgDoubleShiftEarnings = (173 + 154 + 135) / 3;
+                const minWorkDaysNeeded = Math.max(
+                    Math.floor(availableDays * 0.9),
+                    Math.ceil(this.requiredFlexNet / avgDoubleShiftEarnings)
+                );
+                const actualWorkDaysAfterEdit = workDaysList.filter(d => d >= startDay).length;
+                const workDayDeficit = Math.max(0, minWorkDaysNeeded - actualWorkDaysAfterEdit);
+                
+                return violations * 10000 +                    // Safety: critical minimum balance violations  
+                       belowTargetPenalty +                    // Survival: must meet minimum target
+                       aboveTargetPenalty +                    // Overshoot: minimal penalty (overshoot OK)
+                       earningsShortfall * 100 +               // Earnings: must earn enough
+                       workDayDeficit * 1000 +                 // Work: must work enough days
+                       (minBalance < this.minimumBalance ? 
+                           Math.abs(minBalance - this.minimumBalance) * 200 : 0); // Enhanced minimum balance safety
+            }
+            
+            evaluateFitness(chromosome) {
+                let balance = this.startingBalance; // Always start from the original balance
+                let workDays = 0;
+                let totalEarnings = 0;
+                let violations = 0;
+                let minBalance = this.startingBalance;
+                const workDaysList = [];
+                let balanceConstraintViolations = 0;
+                
+                // Simulate the ENTIRE month to get accurate fitness
+                for (let day = 1; day <= 30; day++) {
+                    // Add Mom's deposits
+                    balance += this.depositsByDay[day] || 0;
+                    
+                    // Process shifts for this day
+                    if (day < this.startDay) {
+                        // Before balance edit - use locked schedule from constraints
+                        if (this.manualConstraints[day] && this.manualConstraints[day].shifts) {
+                            const shifts = this.manualConstraints[day].shifts.split('+');
+                            for (let shift of shifts) {
+                                balance += this.shifts[shift].net;
+                                totalEarnings += this.shifts[shift].net;
+                            }
+                            workDays++;
+                            workDaysList.push(day);
+                        }
+                    } else if (chromosome[day]) {
+                        // After balance edit - use chromosome
+                        const shifts = chromosome[day].split('+');
+                        for (let shift of shifts) {
+                            balance += this.shifts[shift].net;
+                            totalEarnings += this.shifts[shift].net;
+                        }
+                        workDays++;
+                        workDaysList.push(day);
+                    }
+                    
+                    // Subtract daily expenses
+                    balance -= this.expensesByDay[day];
+                    
+                    // Handle balance edit override
+                    if (this.balanceEditDay && day === this.balanceEditDay) {
+                        balance = this.newStartingBalance;
+                    }
+                    
+                    // Check balance constraints
+                    if (this.manualConstraints && this.manualConstraints[day] && 
+                        this.manualConstraints[day].fixedBalance !== undefined) {
+                        const targetBalance = this.manualConstraints[day].fixedBalance;
+                        const balanceDiff = Math.abs(balance - targetBalance);
+                        if (balanceDiff > 0.01) {
+                            balanceConstraintViolations += balanceDiff * 1000; // Heavy penalty
+                        }
+                    }
+                    
+                    // Track violations and minimum balance
+                    if (balance < this.minimumBalance) {
+                        violations++;
+                    }
+                    if (balance < minBalance) {
+                        minBalance = balance;
+                    }
+                }
+                
+                // Calculate work distribution metrics
+                const gaps = [];
+                for (let i = 1; i < workDaysList.length; i++) {
+                    gaps.push(workDaysList[i] - workDaysList[i-1]);
+                }
+                
+                let gapVariance = 0;
+                if (gaps.length > 0) {
+                    const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+                    gapVariance = gaps.reduce((sum, gap) => sum + Math.pow(gap - avgGap, 2), 0) / gaps.length;
+                }
+                
+                const consecutiveDays = gaps.filter(g => g === 1).length;
+                const finalBalanceDiff = Math.abs(balance - this.targetEndingBalance);
+                
+                // Determine crisis mode based on deficit severity
+                const availableDays = this.balanceEditDay ? (30 - this.balanceEditDay) : 30;
+                const deficitPerDay = this.requiredFlexNet / availableDays;
+                const largeShiftEarnings = this.shifts.large.net;
+                const inCrisisMode = deficitPerDay > largeShiftEarnings; // Need more than 1 large shift per day
+                
+                // Calculate fitness using context-appropriate function with crisis-aware constraint penalties
+                const constraintPenaltyMultiplier = inCrisisMode ? 0.01 : 10000; // Minimal constraint penalty in crisis mode
+                const fitness = inCrisisMode ? 
+                    this.calculateCrisisFitness(chromosome, balance, workDays, violations, totalEarnings, minBalance, workDaysList) + balanceConstraintViolations * constraintPenaltyMultiplier :
+                    this.calculateNormalFitness(chromosome, balance, workDays, violations, totalEarnings, minBalance, workDaysList) + balanceConstraintViolations * constraintPenaltyMultiplier;
+
+                // Context-aware debug output during regeneration
+                if (this.balanceEditDay && Math.random() < 0.01) { // Debug 1% of evaluations
+                    console.log(`FITNESS BREAKDOWN - ${inCrisisMode ? 'CRISIS' : 'NORMAL'} MODE (${workDays} work days, $${balance.toFixed(2)} balance):`);
+                    console.log(`  Balance constraint violations: ${balanceConstraintViolations * constraintPenaltyMultiplier}`);
+                    
+                    if (inCrisisMode) {
+                        const belowTargetPenalty = balance < this.targetEndingBalance ? (this.targetEndingBalance - balance) * 1000 : 0;
+                        const aboveTargetPenalty = balance > this.targetEndingBalance ? (balance - this.targetEndingBalance) * 0.1 : 0;
+                        const earningsShortfall = Math.max(0, this.requiredFlexNet - totalEarnings);
+                        console.log(`  CRISIS: Below target penalty: ${belowTargetPenalty}`);
+                        console.log(`  CRISIS: Above target penalty: ${aboveTargetPenalty} (overshoot OK)`);
+                        console.log(`  CRISIS: Earnings shortfall: ${earningsShortfall * 100}`);
+                        console.log(`  CRISIS: Safety violations: ${violations * 10000}`);
+                    } else {
+                        const finalBalanceDiff = Math.abs(balance - this.targetEndingBalance);
+                        const workDayPenalty = workDays * 30;
+                        console.log(`  NORMAL: Balance diff penalty: ${finalBalanceDiff * 20}`);
+                        console.log(`  NORMAL: Work day penalty: ${workDayPenalty}`);
+                        console.log(`  NORMAL: Safety violations: ${violations * 5000}`);
+                    }
+                    console.log(`  TOTAL FITNESS: ${fitness}`);
+                }
+                
+                return {
+                    fitness: fitness,
+                    balance: balance,
+                    workDays: workDays,
+                    violations: violations,
+                    totalEarnings: totalEarnings,
+                    minBalance: minBalance,
+                    workDaysList: workDaysList
+                };
+            }
+            
+            tournamentSelect(population) {
+                const tournament = [];
+                
+                // Select random individuals for tournament
+                for (let i = 0; i < this.tournamentSize; i++) {
+                    const idx = Math.floor(Math.random() * population.length);
+                    tournament.push(population[idx]);
+                }
+                
+                // Return the fittest
+                tournament.sort((a, b) => a.fitness.fitness - b.fitness.fitness);
+                return tournament[0];
+            }
+            
+            crossover(parent1, parent2) {
+                const child = new Array(31).fill(null);
+                
+                // Two-point crossover
+                const point1 = Math.floor(Math.random() * 30) + 1;
+                const point2 = Math.floor(Math.random() * 30) + 1;
+                const start = Math.min(point1, point2);
+                const end = Math.max(point1, point2);
+                
+                for (let day = 1; day <= 30; day++) {
+                    if (day >= start && day <= end) {
+                        child[day] = parent2.chromosome[day];
+                    } else {
+                        child[day] = parent1.chromosome[day];
+                    }
+                }
+                
+                return child;
+            }
+            
+            mutate(chromosome) {
+                const mutated = [...chromosome];
+                
+                // Start from appropriate day based on balance edit
+                const startDay = this.balanceEditDay ? this.balanceEditDay + 1 : 1;
+                
+                for (let day = startDay; day <= 30; day++) {
+                    // Skip days with manual constraints
+                    if (this.manualConstraints && this.manualConstraints[day]) {
+                        continue;
+                    }
+                    
+                    if (Math.random() < this.mutationRate) {
+                        // Check if we're in extreme deficit mode
+                        const availableDays = this.balanceEditDay ? (30 - this.balanceEditDay) : 30;
+                        const deficitPerDay = this.requiredFlexNet / availableDays;
+                        const largeShiftEarnings = this.shifts.large.net;
+                        const isExtremeDeficit = deficitPerDay > largeShiftEarnings;
+                        
+                        const allOptions = [
+                            null,              // Day off
+                            'small',           // Single small shift
+                            'medium',          // Single medium shift
+                            'large',           // Single large shift
+                            'small+small',     // Double small shifts
+                            'small+medium',    // Small + medium shifts
+                            'small+large',     // Small + large shifts
+                            'medium+medium',   // Double medium shifts
+                            'medium+large',    // Medium + large shifts
+                            'large+large'      // Double large shifts
+                        ];
+                        
+                        if (isExtremeDeficit) {
+                            // Crisis-aware mutation: heavily favor work days and high earnings
+                            const currentValue = mutated[day];
+                            const isCurrentlyWorking = currentValue !== null;
+                            
+                            // Count current work days to see if we need more
+                            let currentWorkDays = 0;
+                            const mutationStartDay = this.balanceEditDay ? this.balanceEditDay + 1 : 1;
+                            for (let d = mutationStartDay; d <= 30; d++) {
+                                if (mutated[d] && (!this.manualConstraints || !this.manualConstraints[d])) {
+                                    currentWorkDays++;
+                                }
+                            }
+                            
+                            const mutationAvailableDays = this.balanceEditDay ? (30 - this.balanceEditDay) : 30;
+                            const avgDoubleShiftEarnings = (173 + 154 + 135) / 3;
+                            const minWorkDaysNeeded = Math.max(
+                                Math.floor(mutationAvailableDays * 0.9),
+                                Math.ceil(this.requiredFlexNet / avgDoubleShiftEarnings)
+                            );
+                            
+                            const needMoreWorkDays = currentWorkDays < minWorkDaysNeeded;
+                            
+                            if (!isCurrentlyWorking && needMoreWorkDays) {
+                                // Force this day to work if we need more work days
+                                const rand = Math.random();
+                                if (rand < 0.4) {
+                                    mutated[day] = 'large+large'; // 40% highest earning
+                                } else if (rand < 0.8) {
+                                    mutated[day] = Math.random() < 0.5 ? 'medium+large' : 'large+medium'; // 40% second highest
+                                } else {
+                                    mutated[day] = 'medium+medium'; // 20% third highest
+                                }
+                            } else if (isCurrentlyWorking) {
+                                // Already working - potentially upgrade to higher earnings
+                                const rand = Math.random();
+                                if (rand < 0.1) {
+                                    mutated[day] = null; // 10% chance to take day off
+                                } else if (rand < 0.3) {
+                                    mutated[day] = 'large+large'; // 20% upgrade to highest
+                                } else if (rand < 0.6) {
+                                    mutated[day] = Math.random() < 0.5 ? 'medium+large' : 'large+medium'; // 30% second highest
+                                } else if (rand < 0.8) {
+                                    mutated[day] = 'medium+medium'; // 20% medium double
+                                } else {
+                                    // Keep current value 20% of the time
+                                }
+                            } else {
+                                // Day off and we have enough work days - small chance to add work
+                                const rand = Math.random();
+                                if (rand < 0.3) {
+                                    mutated[day] = 'medium+medium'; // 30% chance to add work anyway
+                                }
+                            }
+                        } else {
+                            // Conservative mutation for normal scenarios
+                            const rand = Math.random();
+                            if (rand < 0.2) {
+                                mutated[day] = null; // Day off
+                            } else if (rand < 0.5) {
+                                mutated[day] = 'medium';
+                            } else if (rand < 0.7) {
+                                mutated[day] = 'medium+medium';
+                            } else if (rand < 0.85) {
+                                mutated[day] = 'large';
+                            } else {
+                                mutated[day] = allOptions[Math.floor(Math.random() * allOptions.length)];
+                            }
+                        }
+                    }
+                }
+                
+                return mutated;
+            }
+            
+            async optimize(progressCallback) {
+                // Starting enhanced genetic algorithm optimization
+                
+                // Initialize population
+                let population = [];
+                
+                // Check if we're in crisis mode for special population seeding
+                const availableDays = this.balanceEditDay ? (30 - this.balanceEditDay) : 30;
+                const maxPossibleSingleShifts = availableDays * this.shifts.large.net;
+                const inCrisisMode = this.requiredFlexNet > maxPossibleSingleShifts;
+                
+                // Fill population with randomly generated chromosomes
+                for (let i = 0; i < this.populationSize; i++) {
+                    const chromosome = this.generateChromosome();
+                    const fitness = this.evaluateFitness(chromosome);
+                    population.push({ chromosome, fitness });
+                }
+                
+                // Debug initial population during regeneration
+                if (this.balanceEditDay) {
+                    console.log(`\n=== INITIAL POPULATION DEBUG ===`);
+                    console.log(`Crisis mode: ${inCrisisMode}`);
+                    console.log(`Required earnings: $${this.requiredFlexNet.toFixed(2)}`);
+                    console.log(`Available days: ${availableDays}`);
+                    console.log(`Max single shifts: $${maxPossibleSingleShifts.toFixed(2)}`);
+                    
+                    // Show first 3 chromosomes from initial population
+                    for (let i = 0; i < Math.min(3, population.length); i++) {
+                        const startDay = this.balanceEditDay + 1;
+                        let workDaysAfterEdit = 0;
+                        console.log(`\nInitial Chromosome ${i + 1}:`);
+                        for (let d = startDay; d <= 30; d++) {
+                            const shifts = population[i].chromosome[d] || 'Off';
+                            if (shifts !== 'Off') workDaysAfterEdit++;
+                            console.log(`  Day ${d}: ${shifts}`);
+                        }
+                        console.log(`Work days: ${workDaysAfterEdit}/13 | Fitness: ${population[i].fitness.fitness.toFixed(0)}`);
+                    }
+                }
+                
+                // In crisis mode during regeneration, seed population with high-work solutions
+                if (inCrisisMode && this.balanceEditDay) {
+                    const seedCount = Math.floor(this.populationSize * 0.3); // 30% of population
+                    console.log(`\nSeeding ${seedCount} high-work chromosomes...`);
+                    for (let i = 0; i < seedCount; i++) {
+                        const seedChromosome = this.generateHighWorkChromosome();
+                        const fitness = this.evaluateFitness(seedChromosome);
+                        population[i] = { chromosome: seedChromosome, fitness }; // Replace first 30%
+                    }
+                    
+                    // Show first seeded chromosome
+                    const startDay = this.balanceEditDay + 1;
+                    let seededWorkDays = 0;
+                    console.log(`\nSeeded Chromosome 1:`);
+                    for (let d = startDay; d <= 30; d++) {
+                        const shifts = population[0].chromosome[d] || 'Off';
+                        if (shifts !== 'Off') seededWorkDays++;
+                        console.log(`  Day ${d}: ${shifts}`);
+                    }
+                    console.log(`Seeded work days: ${seededWorkDays}/13 | Fitness: ${population[0].fitness.fitness.toFixed(0)}`);
+                    console.log(`================================\n`);
+                }
+                
+                let bestEverFitness = Infinity;
+                let generationsWithoutImprovement = 0;
+                const maxGenerationsWithoutImprovement = 150;
+                
+                // Evolution loop
+                for (let gen = 0; gen < this.generations; gen++) {
+                    // Sort population by fitness (lower is better)
+                    population.sort((a, b) => a.fitness.fitness - b.fitness.fitness);
+                    
+                    // Track fitness history
+                    this.fitnessHistory.push(population[0].fitness.fitness);
+                    
+                    // Report progress and debug current best solution
+                    if (progressCallback && gen % 50 === 0) {
+                        const best = population[0];
+                        await progressCallback({
+                            generation: gen,
+                            progress: (gen / this.generations) * 100,
+                            bestFitness: best.fitness.fitness,
+                            workDays: best.fitness.workDays,
+                            balance: best.fitness.balance,
+                            violations: best.fitness.violations
+                        });
+                        
+                        // Debug: Print current best chromosome during regeneration
+                        if (this.balanceEditDay) {
+                            console.log(`\n=== GENERATION ${gen} BEST SOLUTION ===`);
+                            console.log(`Fitness: ${best.fitness.fitness.toFixed(0)} | Work Days: ${best.fitness.workDays} | Balance: $${best.fitness.balance.toFixed(2)}`);
+                            
+                            // Show schedule for days after balance edit
+                            const startDay = this.balanceEditDay + 1;
+                            let workDaysAfterEdit = 0;
+                            console.log(`Days ${startDay}-30 schedule:`);
+                            for (let d = startDay; d <= 30; d++) {
+                                const shifts = best.chromosome[d] || 'Off';
+                                if (shifts !== 'Off') workDaysAfterEdit++;
+                                console.log(`  Day ${d}: ${shifts}`);
+                            }
+                            console.log(`Work days after edit: ${workDaysAfterEdit}/13 available`);
+                            console.log(`===============================\n`);
+                        }
+                        
+                        // Allow UI to update
+                        await new Promise(resolve => setTimeout(resolve, 10));
+                    }
+                    
+                    // Check for improvement
+                    if (population[0].fitness.fitness < bestEverFitness * 0.99) {
+                        bestEverFitness = population[0].fitness.fitness;
+                        generationsWithoutImprovement = 0;
+                    } else {
+                        generationsWithoutImprovement++;
+                    }
+                    
+                    // Early termination if converged with valid solution
+                    const best = population[0].fitness;
+                    const balanceTolerance = 5;
+                    if (gen > 300 && generationsWithoutImprovement > maxGenerationsWithoutImprovement &&
+                        best.violations === 0 && 
+                        best.balance >= this.targetEndingBalance - balanceTolerance) {
+                        // Solution converged
+                        break;
+                    }
+                    
+                    // Create new population
+                    const newPopulation = [];
+                    
+                    // Elitism: Keep best individuals
+                    for (let i = 0; i < this.eliteSize && i < population.length; i++) {
+                        newPopulation.push({
+                            chromosome: [...population[i].chromosome],
+                            fitness: population[i].fitness
+                        });
+                    }
+                    
+                    // Generate rest through crossover and mutation
+                    while (newPopulation.length < this.populationSize) {
+                        // Tournament selection
+                        const parent1 = this.tournamentSelect(population);
+                        const parent2 = this.tournamentSelect(population);
+                        
+                        // Crossover
+                        let child = this.crossover(parent1, parent2);
+                        
+                        // Mutation
+                        child = this.mutate(child);
+                        
+                        // Evaluate and add
+                        const fitness = this.evaluateFitness(child);
+                        newPopulation.push({ chromosome: child, fitness });
+                    }
+                    
+                    population = newPopulation;
+                }
+                
+                // Return best solution
+                population.sort((a, b) => a.fitness.fitness - b.fitness.fitness);
+                const best = population[0];
+                
+                return {
+                    schedule: best.chromosome,
+                    workDays: best.fitness.workDaysList,
+                    totalEarnings: best.fitness.totalEarnings,
+                    finalBalance: best.fitness.balance,
+                    minBalance: best.fitness.minBalance,
+                    violations: best.fitness.violations,
+                    getFormattedSchedule: () => this.formatSchedule(best.chromosome)
+                };
+            }
+            
+            formatSchedule(chromosome) {
+                const schedule = [];
+                let balance = this.startingBalance;
+                
+                // Processing schedule format
+                
+                // If we have a balance edit, we need to include the locked days before it
+                for (let day = 1; day <= 30; day++) {
+                    const dayInfo = {
+                        day: day,
+                        shifts: [],
+                        earnings: 0,
+                        expenses: this.expensesByDay[day] || 0,
+                        deposit: this.depositsByDay[day] || 0,
+                        startBalance: balance,
+                        endBalance: 0  // Initialize to avoid null/undefined
+                    };
+                    
+                    balance += dayInfo.deposit;
+                    
+                    // Handle days based on whether they're before/after balance edit
+                    if (this.balanceEditDay && day < this.balanceEditDay) {
+                        // Use the locked schedule from constraints
+                        if (this.manualConstraints[day] && this.manualConstraints[day].shifts) {
+                            const shiftType = this.manualConstraints[day].shifts;
+                            if (shiftType) {
+                                const shifts = shiftType.split('+');
+                                dayInfo.shifts = shifts;
+                                for (let shift of shifts) {
+                                    dayInfo.earnings += this.shifts[shift].net;
+                                }
+                                balance += dayInfo.earnings;
+                            }
+                        }
+                    } else if (this.balanceEditDay && day === this.balanceEditDay) {
+                        // This is the balance edit day - the ending balance should match the edited value
+                        // First calculate earnings for this day if any
+                        if (this.manualConstraints[day] && this.manualConstraints[day].shifts) {
+                            const shiftType = this.manualConstraints[day].shifts;
+                            if (shiftType) {
+                                const shifts = shiftType.split('+');
+                                dayInfo.shifts = shifts;
+                                for (let shift of shifts) {
+                                    dayInfo.earnings += this.shifts[shift].net;
+                                }
+                                balance += dayInfo.earnings;
+                            }
+                        }
+                        // The balance at the END of this day should be the edited balance
+                        // So we'll calculate it after expenses are subtracted
+                    } else {
+                        // Use the chromosome for this day (days after balance edit)
+                        if (chromosome[day]) {
+                            const shifts = chromosome[day].split('+');
+                            dayInfo.shifts = shifts;
+                            for (let shift of shifts) {
+                                dayInfo.earnings += this.shifts[shift].net;
+                            }
+                            balance += dayInfo.earnings;
+                        }
+                    }
+                    
+                    balance -= dayInfo.expenses;
+                    
+                    // If this is the balance edit day, override the ending balance
+                    if (this.balanceEditDay && day === this.balanceEditDay) {
+                        balance = this.newStartingBalance;
+                    }
+                    
+                    dayInfo.endBalance = balance;
+                    schedule.push(dayInfo);
+                }
+                
+                return schedule;
+            }
+        }
+        
+        async function runOptimization() {
+            const btn = document.getElementById('optimizeBtn');
+            const progressDiv = document.getElementById('progress');
+            const resultsDiv = document.getElementById('results');
+            
+            const config = {
+                startingBalance: parseFloat(document.getElementById('startingBalance').value),
+                targetEndingBalance: parseFloat(document.getElementById('targetBalance').value),
+                minimumBalance: parseFloat(document.getElementById('minimumBalance').value),
+                populationSize: parseInt(document.getElementById('populationSize').value),
+                generations: parseInt(document.getElementById('generations').value)
+            };
+            
+            btn.disabled = true;
+            progressDiv.style.display = 'block';
+            resultsDiv.style.display = 'none';
+            
+            // Starting optimization
+            
+            // Start timer
+            const startTime = performance.now();
+            
+            const optimizer = new ImprovedGeneticOptimizer(config);
+            
+            const result = await optimizer.optimize(async (progress) => {
+                document.getElementById('progressText').textContent = 
+                    `Generation ${progress.generation}/${config.generations} - ${progress.workDays} work days found` +
+                    (progress.violations > 0 ? ` (${progress.violations} violations)` : '');
+                const fillElement = document.getElementById('progressFill');
+                fillElement.style.width = `${progress.progress}%`;
+                fillElement.textContent = `${Math.round(progress.progress)}%`;
+            });
+            
+            // Calculate computation time
+            const endTime = performance.now();
+            const computationTime = ((endTime - startTime) / 1000).toFixed(2);
+            
+            // Add computation time to result
+            result.computationTime = computationTime;
+            
+            displayResults(result, config);
+            
+            btn.disabled = false;
+            progressDiv.style.display = 'none';
+        }
+        
+        function displayResults(result, config) {
+            const resultsDiv = document.getElementById('results');
+            const summaryDiv = document.getElementById('summaryContent');
+            const scheduleBody = document.getElementById('scheduleBody');
+            
+            // Show loading state while building the table
+            scheduleBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; font-style: italic;">Building optimized schedule...</td></tr>';
+            
+            // Use setTimeout to allow the loading message to display
+            setTimeout(() => {
+                summaryDiv.innerHTML = `
+                    <p><strong>Total Work Days:</strong> ${result.workDays.length}</p>
+                    <p><strong>Work Days:</strong> ${result.workDays.join(', ')}</p>
+                    <p><strong>Total Earnings:</strong> $${result.totalEarnings.toFixed(2)}</p>
+                    <p><strong>Final Balance:</strong> $${result.finalBalance.toFixed(2)}</p>
+                    <p><strong>Target Balance:</strong> $${config.targetEndingBalance.toFixed(2)}</p>
+                    <p><strong>Difference from Target:</strong> $${Math.abs(result.finalBalance - config.targetEndingBalance).toFixed(2)}</p>
+                    <p><strong>Minimum Balance Reached:</strong> $${result.minBalance.toFixed(2)}</p>
+                    <p><strong>Constraint Violations:</strong> ${result.violations}</p>
+                `;
+                
+                const schedule = result.getFormattedSchedule();
+                scheduleBody.innerHTML = '';
+                
+                schedule.forEach(day => {
+                const row = document.createElement('tr');
+                const isWorkDay = day.shifts.length > 0;
+                const isLowBalance = day.endBalance < 50;
+                const hasMomDeposit = day.deposit > 0;
+                const violatesMinimum = day.endBalance < config.minimumBalance;
+                
+                if (isWorkDay) row.classList.add('work-day');
+                
+                let notes = '';
+                if (hasMomDeposit) notes += 'Mom deposit ';
+                if (violatesMinimum) notes += 'BELOW MINIMUM ';
+                else if (isLowBalance) notes += 'Low balance ';
+                
+                const shiftsText = day.shifts && day.shifts.length > 0 ? day.shifts.join('+') : 'Off';
+                
+                row.innerHTML = `
+                    <td>${day.day}</td>
+                    <td>${shiftsText}</td>
+                    <td class="editable" contenteditable="true" data-day="${day.day}" data-field="earnings" data-original="${day.earnings}">${day.earnings > 0 ? '$' + day.earnings.toFixed(2) : '-'}</td>
+                    <td class="editable" contenteditable="true" data-day="${day.day}" data-field="expenses" data-original="${day.expenses}">${day.expenses > 0 ? '$' + day.expenses.toFixed(2) : '-'}</td>
+                    <td class="editable ${violatesMinimum ? 'low-balance' : ''}" contenteditable="true" data-day="${day.day}" data-field="balance" data-original="${day.endBalance}">${'$' + day.endBalance.toFixed(2)}</td>
+                    <td class="editable ${hasMomDeposit ? 'mom-deposit' : ''}" contenteditable="true" data-day="${day.day}" data-field="notes" data-original="${notes}">${notes}</td>
+                `;
+                
+                scheduleBody.appendChild(row);
+            });
+            
+            resultsDiv.style.display = 'block';
+            
+            // Enable editing functionality
+            enableTableEditing();
+            
+            // Show editing instructions
+            document.getElementById('editInstructions').style.display = 'block';
+            
+            // Optimization complete - console output suppressed for clean regeneration
+            }, 100); // Small delay to show loading message
+        }
+        
+        // Global variables for editing functionality
+        let editedCells = new Map(); // Track edited cells
+        let lastOptimizationResult = null;
+        let lastOptimizationConfig = null;
+        
+        function enableTableEditing() {
+            const editableCells = document.querySelectorAll('.schedule-table td.editable');
+            
+            editableCells.forEach(cell => {
+                // Store original value
+                const originalValue = cell.textContent;
+                cell.dataset.originalDisplay = originalValue;
+                
+                // Focus event - prepare for editing
+                cell.addEventListener('focus', function() {
+                    // If it's a currency field, remove $ and format for editing
+                    if (['earnings', 'expenses', 'balance'].includes(this.dataset.field)) {
+                        const numValue = parseFloat(this.dataset.original);
+                        this.textContent = numValue > 0 ? numValue.toFixed(2) : '0';
+                    }
+                    // Select all text for easy replacement
+                    const range = document.createRange();
+                    range.selectNodeContents(this);
+                    const selection = window.getSelection();
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                });
+                
+                // Input event - validate while typing
+                cell.addEventListener('input', function() {
+                    if (['earnings', 'expenses', 'balance'].includes(this.dataset.field)) {
+                        // Allow only numbers and decimal point
+                        let value = this.textContent;
+                        value = value.replace(/[^0-9.]/g, '');
+                        // Ensure only one decimal point
+                        const parts = value.split('.');
+                        if (parts.length > 2) {
+                            value = parts[0] + '.' + parts.slice(1).join('');
+                        }
+                        if (value !== this.textContent) {
+                            this.textContent = value;
+                            // Move cursor to end
+                            const range = document.createRange();
+                            range.selectNodeContents(this);
+                            range.collapse(false);
+                            const selection = window.getSelection();
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+                        }
+                    }
+                });
+                
+                // Blur event - save changes
+                cell.addEventListener('blur', function() {
+                    handleCellEdit(this);
+                });
+                
+                // Enter key to confirm edit
+                cell.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        this.blur();
+                    }
+                });
+            });
+        }
+        
+        function handleCellEdit(cell) {
+            const day = parseInt(cell.dataset.day);
+            const field = cell.dataset.field;
+            const originalValue = parseFloat(cell.dataset.original) || 0;
+            let newValue = cell.textContent.trim();
+            
+            // Parse numeric fields
+            if (['earnings', 'expenses', 'balance'].includes(field)) {
+                // Parse the value, removing any non-numeric characters except decimal point
+                newValue = newValue.replace(/[^0-9.]/g, '');
+                newValue = parseFloat(newValue) || 0;
+                
+                // Format display with $
+                if (newValue > 0) {
+                    cell.textContent = '$' + newValue.toFixed(2);
+                } else {
+                    cell.textContent = '-';
+                }
+                
+                // Check if value actually changed
+                if (Math.abs(newValue - originalValue) < 0.01) {
+                    // No real change, remove from edited cells
+                    const key = `${day}-${field}`;
+                    editedCells.delete(key);
+                    cell.classList.remove('edited');
+                } else {
+                    // Track the edit
+                    const key = `${day}-${field}`;
+                    editedCells.set(key, {
+                        day: day,
+                        field: field,
+                        originalValue: originalValue,
+                        newValue: newValue
+                    });
+                    cell.classList.add('edited');
+                    
+                    // Auto-recalculate balance if earnings or expenses changed
+                    if (field === 'earnings' || field === 'expenses') {
+                        recalculateBalance(day);
+                    } else if (field === 'balance') {
+                        // For balance edits, cascade to subsequent days only
+                        recalculateBalanceFromDay(day);
+                    }
+                }
+            } else if (field === 'notes') {
+                // For notes field, just track if it changed
+                if (newValue !== cell.dataset.original) {
+                    const key = `${day}-${field}`;
+                    editedCells.set(key, {
+                        day: day,
+                        field: field,
+                        originalValue: cell.dataset.original,
+                        newValue: newValue
+                    });
+                    cell.classList.add('edited');
+                } else {
+                    const key = `${day}-${field}`;
+                    editedCells.delete(key);
+                    cell.classList.remove('edited');
+                }
+            }
+            
+            // Show/hide regenerate section
+            updateRegenerateSection();
+        }
+        
+        function recalculateBalance(changedDay) {
+            const rows = document.querySelectorAll('.schedule-table tbody tr');
+            let balance = lastOptimizationConfig.startingBalance;
+            
+            rows.forEach((row, index) => {
+                const day = index + 1;
+                const earningsCell = row.querySelector(`td[data-field="earnings"]`);
+                const expensesCell = row.querySelector(`td[data-field="expenses"]`);
+                const balanceCell = row.querySelector(`td[data-field="balance"]`);
+                
+                // If we're before the changed day, calculate normally
+                if (day < changedDay) {
+                    // Get current values (either edited or original)
+                    let earnings = 0;
+                    let expenses = 0;
+                    
+                    const earningsEdit = editedCells.get(`${day}-earnings`);
+                    const expensesEdit = editedCells.get(`${day}-expenses`);
+                    
+                    if (earningsEdit) {
+                        earnings = earningsEdit.newValue;
+                    } else {
+                        earnings = parseFloat(earningsCell.dataset.original) || 0;
+                    }
+                    
+                    if (expensesEdit) {
+                        expenses = expensesEdit.newValue;
+                    } else {
+                        expenses = parseFloat(expensesCell.dataset.original) || 0;
+                    }
+                    
+                    // Get original values to calculate deposits
+                    const originalEarnings = parseFloat(earningsCell.dataset.original) || 0;
+                    const originalExpenses = parseFloat(expensesCell.dataset.original) || 0;
+                    const originalBalance = parseFloat(balanceCell.dataset.original) || 0;
+                    
+                    let originalPrevBalance;
+                    if (day === 1) {
+                        originalPrevBalance = lastOptimizationConfig.startingBalance;
+                    } else {
+                        const prevOriginalBalance = parseFloat(rows[index - 1].querySelector(`td[data-field="balance"]`).dataset.original) || 0;
+                        originalPrevBalance = prevOriginalBalance;
+                    }
+                    
+                    // Infer deposits from original data
+                    const impliedDeposit = originalBalance - originalPrevBalance - originalEarnings + originalExpenses;
+                    
+                    // Calculate new balance with deposits
+                    balance = balance + earnings + impliedDeposit - expenses;
+                    
+                } else if (day === changedDay) {
+                    // On the changed day, check if balance was directly edited
+                    const balanceEdit = editedCells.get(`${day}-balance`);
+                    if (balanceEdit && balanceEdit.field === 'balance') {
+                        // Balance was directly edited, use that value
+                        balance = balanceEdit.newValue;
+                    } else {
+                        // Balance change was due to earnings/expenses, calculate normally
+                        let earnings = 0;
+                        let expenses = 0;
+                        
+                        const earningsEdit = editedCells.get(`${day}-earnings`);
+                        const expensesEdit = editedCells.get(`${day}-expenses`);
+                        
+                        if (earningsEdit) {
+                            earnings = earningsEdit.newValue;
+                        } else {
+                            earnings = parseFloat(earningsCell.dataset.original) || 0;
+                        }
+                        
+                        if (expensesEdit) {
+                            expenses = expensesEdit.newValue;
+                        } else {
+                            expenses = parseFloat(expensesCell.dataset.original) || 0;
+                        }
+                        
+                        const originalEarnings = parseFloat(earningsCell.dataset.original) || 0;
+                        const originalExpenses = parseFloat(expensesCell.dataset.original) || 0;
+                        const originalBalance = parseFloat(balanceCell.dataset.original) || 0;
+                        
+                        let originalPrevBalance;
+                        if (day === 1) {
+                            originalPrevBalance = lastOptimizationConfig.startingBalance;
+                        } else {
+                            const prevOriginalBalance = parseFloat(rows[index - 1].querySelector(`td[data-field="balance"]`).dataset.original) || 0;
+                            originalPrevBalance = prevOriginalBalance;
+                        }
+                        
+                        const impliedDeposit = originalBalance - originalPrevBalance - originalEarnings + originalExpenses;
+                        balance = balance + earnings + impliedDeposit - expenses;
+                    }
+                } else {
+                    // After the changed day, cascade the balance updates
+                    let earnings = 0;
+                    let expenses = 0;
+                    
+                    const earningsEdit = editedCells.get(`${day}-earnings`);
+                    const expensesEdit = editedCells.get(`${day}-expenses`);
+                    
+                    if (earningsEdit) {
+                        earnings = earningsEdit.newValue;
+                    } else {
+                        earnings = parseFloat(earningsCell.dataset.original) || 0;
+                    }
+                    
+                    if (expensesEdit) {
+                        expenses = expensesEdit.newValue;
+                    } else {
+                        expenses = parseFloat(expensesCell.dataset.original) || 0;
+                    }
+                    
+                    const originalEarnings = parseFloat(earningsCell.dataset.original) || 0;
+                    const originalExpenses = parseFloat(expensesCell.dataset.original) || 0;
+                    const originalBalance = parseFloat(balanceCell.dataset.original) || 0;
+                    
+                    let originalPrevBalance;
+                    if (day === 1) {
+                        originalPrevBalance = lastOptimizationConfig.startingBalance;
+                    } else {
+                        const prevOriginalBalance = parseFloat(rows[index - 1].querySelector(`td[data-field="balance"]`).dataset.original) || 0;
+                        originalPrevBalance = prevOriginalBalance;
+                    }
+                    
+                    const impliedDeposit = originalBalance - originalPrevBalance - originalEarnings + originalExpenses;
+                    balance = balance + earnings + impliedDeposit - expenses;
+                }
+                
+                // Update balance cell display
+                balanceCell.textContent = '$' + balance.toFixed(2);
+                
+                // Check if balance changed from original
+                const originalBalance = parseFloat(balanceCell.dataset.original) || 0;
+                if (Math.abs(balance - originalBalance) > 0.01) {
+                    const key = `${day}-balance`;
+                    editedCells.set(key, {
+                        day: day,
+                        field: 'balance',
+                        originalValue: originalBalance,
+                        newValue: balance
+                    });
+                    balanceCell.classList.add('edited');
+                } else {
+                    const key = `${day}-balance`;
+                    editedCells.delete(key);
+                    balanceCell.classList.remove('edited');
+                }
+                
+                // Update balance classes
+                if (balance < lastOptimizationConfig.minimumBalance) {
+                    balanceCell.classList.add('low-balance');
+                } else {
+                    balanceCell.classList.remove('low-balance');
+                }
+            });
+        }
+        
+        function recalculateBalanceFromDay(startDay) {
+            const rows = document.querySelectorAll('.schedule-table tbody tr');
+            let balance = 0;
+            
+            // First, get the balance from the edited day
+            if (startDay === 1) {
+                balance = lastOptimizationConfig.startingBalance;
+            } else {
+                // Get the balance from the previous day
+                const prevBalanceCell = rows[startDay - 2].querySelector(`td[data-field="balance"]`);
+                balance = parseFloat(prevBalanceCell.textContent.replace('$', '')) || 0;
+            }
+            
+            // Now cascade from the start day onwards
+            for (let index = startDay - 1; index < rows.length; index++) {
+                const row = rows[index];
+                const day = index + 1;
+                const earningsCell = row.querySelector(`td[data-field="earnings"]`);
+                const expensesCell = row.querySelector(`td[data-field="expenses"]`);
+                const balanceCell = row.querySelector(`td[data-field="balance"]`);
+                
+                // For the start day, check if balance was directly edited
+                if (day === startDay) {
+                    const balanceEdit = editedCells.get(`${day}-balance`);
+                    if (balanceEdit) {
+                        // Use the directly edited balance value
+                        balance = balanceEdit.newValue;
+                        balanceCell.textContent = '$' + balance.toFixed(2);
+                        continue;
+                    }
+                }
+                
+                // Get current values (either edited or original)
+                let earnings = 0;
+                let expenses = 0;
+                
+                const earningsEdit = editedCells.get(`${day}-earnings`);
+                const expensesEdit = editedCells.get(`${day}-expenses`);
+                
+                if (earningsEdit) {
+                    earnings = earningsEdit.newValue;
+                } else {
+                    earnings = parseFloat(earningsCell.dataset.original) || 0;
+                }
+                
+                if (expensesEdit) {
+                    expenses = expensesEdit.newValue;
+                } else {
+                    expenses = parseFloat(expensesCell.dataset.original) || 0;
+                }
+                
+                // Get original values to calculate deposits
+                const originalEarnings = parseFloat(earningsCell.dataset.original) || 0;
+                const originalExpenses = parseFloat(expensesCell.dataset.original) || 0;
+                const originalBalance = parseFloat(balanceCell.dataset.original) || 0;
+                
+                let originalPrevBalance;
+                if (day === 1) {
+                    originalPrevBalance = lastOptimizationConfig.startingBalance;
+                } else {
+                    const prevOriginalBalance = parseFloat(rows[index - 1].querySelector(`td[data-field="balance"]`).dataset.original) || 0;
+                    originalPrevBalance = prevOriginalBalance;
+                }
+                
+                // Infer deposits from original data
+                const impliedDeposit = originalBalance - originalPrevBalance - originalEarnings + originalExpenses;
+                
+                // Calculate new balance with deposits
+                balance = balance + earnings + impliedDeposit - expenses;
+                
+                // Update balance cell display
+                balanceCell.textContent = '$' + balance.toFixed(2);
+                
+                // Check if balance changed from original
+                if (Math.abs(balance - originalBalance) > 0.01) {
+                    const key = `${day}-balance`;
+                    editedCells.set(key, {
+                        day: day,
+                        field: 'balance',
+                        originalValue: originalBalance,
+                        newValue: balance
+                    });
+                    balanceCell.classList.add('edited');
+                } else {
+                    const key = `${day}-balance`;
+                    editedCells.delete(key);
+                    balanceCell.classList.remove('edited');
+                }
+                
+                // Update balance classes
+                if (balance < lastOptimizationConfig.minimumBalance) {
+                    balanceCell.classList.add('low-balance');
+                } else {
+                    balanceCell.classList.remove('low-balance');
+                }
+            }
+            
+            updateRegenerateSection();
+        }
+        
+        function updateRegenerateSection() {
+            const regenerateSection = document.getElementById('regenerateSection');
+            const editCount = document.getElementById('editCount');
+            
+            if (editedCells.size > 0) {
+                regenerateSection.style.display = 'block';
+                editCount.textContent = `${editedCells.size} cell${editedCells.size > 1 ? 's' : ''} edited`;
+            } else {
+                regenerateSection.style.display = 'none';
+            }
+        }
+        
+        function cancelEdits() {
+            // Restore all original values
+            editedCells.forEach((edit, key) => {
+                const cell = document.querySelector(`td[data-day="${edit.day}"][data-field="${edit.field}"]`);
+                if (cell) {
+                    cell.textContent = cell.dataset.originalDisplay;
+                    cell.classList.remove('edited');
+                }
+            });
+            
+            // Clear edited cells
+            editedCells.clear();
+            
+            // Hide regenerate section
+            updateRegenerateSection();
+        }
+        
+        async function regenerateWithEdits() {
+            // Prepare constraints from manual edits
+            const manualConstraints = {};
+            let balanceEditDay = null;
+            let newStartingBalance = null;
+            
+            editedCells.forEach((edit) => {
+                const day = edit.day;
+                if (!manualConstraints[day]) {
+                    manualConstraints[day] = {};
+                }
+                
+                if (edit.field === 'earnings') {
+                    // Convert earnings back to shift requirements
+                    const earnings = edit.newValue;
+                    if (earnings === 0) {
+                        manualConstraints[day].shifts = null; // Day off
+                    } else if (Math.abs(earnings - 56) < 0.01) {
+                        manualConstraints[day].shifts = 'small';
+                    } else if (Math.abs(earnings - 67.5) < 0.01) {
+                        manualConstraints[day].shifts = 'medium';
+                    } else if (Math.abs(earnings - 86.5) < 0.01) {
+                        manualConstraints[day].shifts = 'large';
+                    } else if (Math.abs(earnings - 112) < 0.01) {
+                        manualConstraints[day].shifts = 'small+small';
+                    } else if (Math.abs(earnings - 123.5) < 0.01) {
+                        manualConstraints[day].shifts = 'small+medium';
+                    } else if (Math.abs(earnings - 135) < 0.01) {
+                        manualConstraints[day].shifts = 'medium+medium';
+                    } else {
+                        // Custom earnings amount - we'll handle this as a fixed constraint
+                        manualConstraints[day].fixedEarnings = earnings;
+                    }
+                } else if (edit.field === 'expenses') {
+                    manualConstraints[day].fixedExpenses = edit.newValue;
+                } else if (edit.field === 'balance') {
+                    // For balance edits, we need a different approach
+                    // Find the earliest balance edit - this becomes our new planning point
+                    if (!balanceEditDay || day < balanceEditDay) {
+                        balanceEditDay = day;
+                        newStartingBalance = edit.newValue;
+                    }
+                    // Store the balance constraint for this specific day
+                    manualConstraints[day].fixedBalance = edit.newValue;
+                }
+            });
+            
+            // Store current edits
+            const savedEdits = new Map(editedCells);
+            
+            // If there's a balance edit, we need to lock all previous days including the edit day
+            if (balanceEditDay) {
+                // Get the current schedule for days up to and including the balance edit
+                const rows = document.querySelectorAll('.schedule-table tbody tr');
+                for (let d = 1; d <= balanceEditDay; d++) {
+                    const row = rows[d - 1];
+                    const earningsCell = row.querySelector(`td[data-field="earnings"]`);
+                    const earnings = parseFloat(earningsCell.dataset.original) || 0;
+                    
+                    // Lock the existing schedule for these days
+                    if (earnings > 0) {
+                        const shiftsCell = row.querySelector('td:nth-child(2)');
+                        const shiftType = shiftsCell.textContent.trim();
+                        if (shiftType !== 'Off') {
+                            // Handle different shift formats
+                            let normalizedShift = shiftType.toLowerCase();
+                            // Convert display format back to internal format
+                            if (normalizedShift.includes('+')) {
+                                // Already in correct format
+                            } else if (normalizedShift === 'small' || normalizedShift === 'medium' || normalizedShift === 'large') {
+                                // Single shift, already correct
+                            } else {
+                                // Try to infer from earnings
+                                if (Math.abs(earnings - 56) < 1) normalizedShift = 'small';
+                                else if (Math.abs(earnings - 67.5) < 1) normalizedShift = 'medium';
+                                else if (Math.abs(earnings - 86.5) < 1) normalizedShift = 'large';
+                                else if (Math.abs(earnings - 112) < 1) normalizedShift = 'small+small';
+                                else if (Math.abs(earnings - 123.5) < 1) normalizedShift = 'small+medium';
+                                else if (Math.abs(earnings - 135) < 1) normalizedShift = 'medium+medium';
+                            }
+                            manualConstraints[d] = { shifts: normalizedShift };
+                        }
+                    }
+                }
+                
+                // Set the balance constraint
+                manualConstraints.balanceEditDay = balanceEditDay;
+                manualConstraints.newStartingBalance = newStartingBalance;
+            }
+            
+            // Run optimization with constraints
+            await runOptimizationWithConstraints(manualConstraints, savedEdits);
+        }
+        
+        async function runOptimizationWithConstraints(constraints, savedEdits) {
+            const btn = document.getElementById('optimizeBtn');
+            const progressDiv = document.getElementById('progress');
+            const resultsDiv = document.getElementById('results');
+            const regenerateSection = document.getElementById('regenerateSection');
+            
+            // Show progress
+            btn.disabled = true;
+            progressDiv.style.display = 'block';
+            regenerateSection.style.display = 'none';
+            
+            // Update progress text
+            document.getElementById('progressText').textContent = 'Regenerating schedule with manual constraints...';
+            
+            const config = {
+                startingBalance: lastOptimizationConfig.startingBalance,
+                targetEndingBalance: lastOptimizationConfig.targetEndingBalance,
+                minimumBalance: lastOptimizationConfig.minimumBalance,
+                populationSize: lastOptimizationConfig.populationSize,
+                generations: lastOptimizationConfig.generations,
+                manualConstraints: constraints
+            };
+            
+            // Running constrained optimization - suppressing console output for clean final schedule display
+            
+            // Create optimizer with constraints
+            const optimizer = new ImprovedGeneticOptimizer(config);
+            
+            const result = await optimizer.optimize(async (progress) => {
+                document.getElementById('progressText').textContent = 
+                    `Generation ${progress.generation}/${config.generations} - ${progress.workDays} work days found` +
+                    (progress.violations > 0 ? ` (${progress.violations} violations)` : '') +
+                    ' (with manual constraints)';
+                const fillElement = document.getElementById('progressFill');
+                fillElement.style.width = `${progress.progress}%`;
+                fillElement.textContent = `${Math.round(progress.progress)}%`;
+            });
+            
+            // Display results with preserved edits
+            displayResultsWithEdits(result, config, savedEdits);
+            
+            // Output final schedule to console for regeneration
+            outputFinalScheduleToConsole(result, config);
+            
+            // Debug info for regeneration
+            outputDebugInfo(result, config);
+            
+            btn.disabled = false;
+            progressDiv.style.display = 'none';
+        }
+        
+        function displayResultsWithEdits(result, config, savedEdits) {
+            // Check if this is a balance-edit regeneration
+            const hasBalanceEdit = config.manualConstraints && config.manualConstraints.balanceEditDay;
+            
+            if (hasBalanceEdit) {
+                // Special display for balance-edit regeneration
+                displayResultsWithBalanceEdit(result, config, savedEdits);
+            } else {
+                // Normal display
+                displayResults(result, config);
+            }
+            
+            // Then restore the edited cells
+            editedCells = new Map(savedEdits);
+            
+            // Re-apply visual indicators for edited cells
+            editedCells.forEach((edit, key) => {
+                const cell = document.querySelector(`td[data-day="${edit.day}"][data-field="${edit.field}"]`);
+                if (cell) {
+                    cell.classList.add('edited');
+                }
+            });
+            
+            // Show regenerate section again if there are still edits
+            updateRegenerateSection();
+        }
+        
+        function displayResultsWithBalanceEdit(result, config, savedEdits) {
+            const resultsDiv = document.getElementById('results');
+            const summaryDiv = document.getElementById('summaryContent');
+            const scheduleBody = document.getElementById('scheduleBody');
+            const balanceEditDay = config.manualConstraints.balanceEditDay;
+            
+            // Show loading state while building the table
+            scheduleBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; font-style: italic;">Regenerating schedule with your edits...</td></tr>';
+            
+            // Use setTimeout to allow the loading message to display
+            setTimeout(() => {
+                // Update summary to show the balance edit context
+                summaryDiv.innerHTML = `
+                <p><strong>Balance Edit Applied:</strong> Day ${balanceEditDay} set to $${config.manualConstraints.newStartingBalance.toFixed(2)}</p>
+                <p><strong>Schedule Updated:</strong> Days ${balanceEditDay + 1}-30 optimized to meet bills</p>
+                <p><strong>Days Before Edit:</strong> Unchanged (days 1-${balanceEditDay})</p>
+                <p><strong>Work Days After Edit:</strong> ${result.workDays.filter(d => d > balanceEditDay).length}</p>
+                <p><strong>Final Balance:</strong> $${result.finalBalance.toFixed(2)}</p>
+                <p><strong>Target Balance:</strong> $${config.targetEndingBalance.toFixed(2)}</p>
+                <p><strong>Difference from Target:</strong> $${Math.abs(result.finalBalance - config.targetEndingBalance).toFixed(2)}</p>
+            `;
+            
+            const schedule = result.getFormattedSchedule();
+            scheduleBody.innerHTML = '';
+            
+            schedule.forEach(day => {
+                // Ensure day object has all required properties
+                if (!day || day.endBalance === null || day.endBalance === undefined) {
+                    console.error('Invalid day object:', day);
+                    return;
+                }
+                
+                const row = document.createElement('tr');
+                const isWorkDay = day.shifts && day.shifts.length > 0;
+                const isLowBalance = day.endBalance < 50;
+                const hasMomDeposit = day.deposit > 0;
+                const violatesMinimum = day.endBalance < config.minimumBalance;
+                const isBeforeEdit = day.day <= balanceEditDay;  // Include the edit day as "before"
+                const isEditDay = day.day === balanceEditDay;
+                
+                if (isWorkDay) row.classList.add('work-day');
+                if (isBeforeEdit) row.style.opacity = '0.6'; // Dim days before edit
+                if (isEditDay) row.style.backgroundColor = '#e3f2fd'; // Highlight edit day
+                
+                let notes = '';
+                if (isEditDay) notes += '📍 BALANCE EDIT ';
+                if (hasMomDeposit) notes += 'Mom deposit ';
+                if (violatesMinimum) notes += 'BELOW MINIMUM ';
+                else if (isLowBalance) notes += 'Low balance ';
+                if (isBeforeEdit) notes += '(Unchanged) ';
+                
+                const shiftsText = day.shifts && day.shifts.length > 0 ? day.shifts.join('+') : 'Off';
+                
+                row.innerHTML = `
+                    <td>${day.day}</td>
+                    <td>${shiftsText}</td>
+                    <td class="editable" contenteditable="${!isBeforeEdit}" data-day="${day.day}" data-field="earnings" data-original="${day.earnings || 0}">${day.earnings > 0 ? '$' + day.earnings.toFixed(2) : '-'}</td>
+                    <td class="editable" contenteditable="${!isBeforeEdit}" data-day="${day.day}" data-field="expenses" data-original="${day.expenses || 0}">${day.expenses > 0 ? '$' + day.expenses.toFixed(2) : '-'}</td>
+                    <td class="editable ${violatesMinimum ? 'low-balance' : ''}" contenteditable="${!isBeforeEdit}" data-day="${day.day}" data-field="balance" data-original="${day.endBalance || 0}">${day.endBalance != null ? '$' + day.endBalance.toFixed(2) : '$0.00'}</td>
+                    <td class="editable ${hasMomDeposit ? 'mom-deposit' : ''}" contenteditable="${!isBeforeEdit}" data-day="${day.day}" data-field="notes" data-original="${notes}">${notes}</td>
+                `;
+                
+                scheduleBody.appendChild(row);
+            });
+            
+            resultsDiv.style.display = 'block';
+            
+            // Enable editing functionality
+            enableTableEditing();
+            
+            // Show editing instructions
+            document.getElementById('editInstructions').style.display = 'block';
+            }, 100); // Small delay to show loading message
+        }
+        
+        // Store optimization results globally when running
+        const originalRunOptimization = runOptimization;
+        runOptimization = async function() {
+            const config = {
+                startingBalance: parseFloat(document.getElementById('startingBalance').value),
+                targetEndingBalance: parseFloat(document.getElementById('targetBalance').value),
+                minimumBalance: parseFloat(document.getElementById('minimumBalance').value),
+                populationSize: parseInt(document.getElementById('populationSize').value),
+                generations: parseInt(document.getElementById('generations').value)
+            };
+            
+            lastOptimizationConfig = config;
+            editedCells.clear(); // Clear any previous edits
+            document.getElementById('regenerateSection').style.display = 'none';
+            
+            await originalRunOptimization();
+        };
+        
+        function outputFinalScheduleToConsole(result, config) {
+            const schedule = result.getFormattedSchedule();
+            
+            console.log('\nFINAL OPTIMIZED SCHEDULE:');
+            console.log('=========================');
+            console.log('Day | Shifts       | Earnings | Expenses | End Balance | Notes');
+            console.log('----+--------------+----------+----------+-------------+-------');
+            
+            schedule.forEach(day => {
+                const shiftsText = day.shifts.length > 0 ? day.shifts.join('+').padEnd(12) : 'Off'.padEnd(12);
+                const earnings = day.earnings > 0 ? '$' + day.earnings.toFixed(2).padEnd(7) : '-'.padEnd(8);
+                const expenses = day.expenses > 0 ? '$' + day.expenses.toFixed(2).padEnd(7) : '-'.padEnd(8);
+                const balance = '$' + day.endBalance.toFixed(2).padEnd(10);
+                let notes = '';
+                if (day.deposit > 0) notes += 'Mom deposit ';
+                if (day.endBalance < config.minimumBalance) notes += 'BELOW MIN ';
+                else if (day.endBalance < 50) notes += 'Low balance ';
+                if (day.shifts.length > 0) notes += 'WORK DAY';
+                
+                console.log(`${day.day.toString().padStart(3)} | ${shiftsText} | ${earnings} | ${expenses} | ${balance} | ${notes.trim()}`);
+            });
+            
+            console.log(`\nFinal Balance: $${result.finalBalance.toFixed(2)} | Work Days: ${result.workDays.length} | Target: $${config.targetEndingBalance.toFixed(2)}`);
+            console.log('=========================\n');
+        }
+
+        function outputDebugInfo(result, config) {
+            if (config.manualConstraints && config.manualConstraints.balanceEditDay) {
+                const balanceEditDay = config.manualConstraints.balanceEditDay;
+                const newStartingBalance = config.manualConstraints.newStartingBalance;
+                const availableDays = 30 - balanceEditDay;
+                
+                // Calculate what the algorithm should have detected
+                let relevantExpenses = 0;
+                let relevantMomIncome = 0;
+                
+                // Recreate the calculation from the optimizer
+                const expensesByDay = [0, 177, 8, 0, 0, 132.5, 0, 0, 20.49, 0, 230, 40, 132.5, 0, 8.49, 0, 40, 463, 0, 132.5, 0, 0, 177, 40, 220, 149, 132.5, 0, 13.49, 70, 1636];
+                const depositsByDay = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1356, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1356, 0, 0, 0, 0, 0];
+                
+                for (let d = balanceEditDay + 1; d <= 30; d++) {
+                    relevantExpenses += expensesByDay[d] || 0;
+                    relevantMomIncome += depositsByDay[d] || 0;
+                }
+                
+                const requiredFlexNet = relevantExpenses + config.targetEndingBalance - newStartingBalance - relevantMomIncome;
+                const maxSingleShifts = availableDays * 86.50;
+                const requiredPerDay = requiredFlexNet / availableDays;
+                
+                console.log('\nCRISIS MODE DEBUG INFO:');
+                console.log('======================');
+                console.log(`Balance Edit: Day ${balanceEditDay} set to $${newStartingBalance.toFixed(2)}`);
+                console.log(`Available Days: ${availableDays} (days ${balanceEditDay + 1}-30)`);
+                console.log(`Required Earnings: $${requiredFlexNet.toFixed(2)}`);
+                console.log(`Required Per Day: $${requiredPerDay.toFixed(2)}`);
+                console.log(`Max Single Shifts: $${maxSingleShifts.toFixed(2)}`);
+                console.log(`Crisis Mode Should Be: ${requiredFlexNet > maxSingleShifts ? 'ACTIVE' : 'INACTIVE'}`);
+                console.log(`Single Large Shift: $86.50 (${requiredPerDay > 86.50 ? 'INSUFFICIENT' : 'sufficient'})`);
+                console.log(`Double Large Needed: ${requiredPerDay > 86.50 ? 'YES' : 'NO'}`);
+                
+                // Analyze the actual schedule generated
+                const schedule = result.getFormattedSchedule();
+                let workDaysAfterEdit = 0;
+                let offDaysAfterEdit = 0;
+                let totalEarningsAfterEdit = 0;
+                let shiftTypes = { single: 0, double: 0 };
+                
+                for (let i = balanceEditDay; i < schedule.length; i++) {
+                    const day = schedule[i];
+                    if (day.shifts && day.shifts.length > 0) {
+                        workDaysAfterEdit++;
+                        totalEarningsAfterEdit += day.earnings;
+                        if (day.shifts.length > 1 || day.shifts[0].includes('+')) {
+                            shiftTypes.double++;
+                        } else {
+                            shiftTypes.single++;
+                        }
+                    } else {
+                        offDaysAfterEdit++;
+                    }
+                }
+                
+                const avgDoubleShiftEarnings = (173 + 154 + 135) / 3;
+                const minWorkDaysNeeded = Math.max(
+                    Math.floor(availableDays * 0.9),
+                    Math.ceil(requiredFlexNet / avgDoubleShiftEarnings)
+                );
+                
+                console.log('\nWORK DAY ANALYSIS:');
+                console.log(`Work Days Generated: ${workDaysAfterEdit}/${availableDays} available`);
+                console.log(`Minimum Needed: ${minWorkDaysNeeded} days`);
+                console.log(`Days Off: ${offDaysAfterEdit}`);
+                console.log(`Single Shifts: ${shiftTypes.single} | Double Shifts: ${shiftTypes.double}`);
+                console.log(`Total Earnings After Edit: $${totalEarningsAfterEdit.toFixed(2)}`);
+                console.log(`Earnings Shortfall: $${Math.max(0, requiredFlexNet - totalEarningsAfterEdit).toFixed(2)}`);
+                console.log(`Work Intensity: ${(workDaysAfterEdit / availableDays * 100).toFixed(1)}% (should be 90%+ in crisis)`);
+                console.log('======================\n');
+            }
+        }
+
+        // Expose functions for testing
+        window.handleCellEdit = handleCellEdit;
+        window.editedCells = editedCells;
+        window.regenerateWithEdits = regenerateWithEdits;
+        window.recalculateBalanceFromDay = recalculateBalanceFromDay;
+    </script>
+</body>
+</html>

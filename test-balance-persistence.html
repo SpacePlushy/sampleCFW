@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Balance Persistence Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-pass {
+            background: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .test-fail {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .log-entry {
+            font-family: monospace;
+            font-size: 14px;
+            margin: 5px 0;
+            padding: 5px;
+            background: #f0f0f0;
+            border-radius: 3px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .constraint-display {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>Balance Persistence Test</h1>
+        <p>This test verifies that manually edited balance values persist through regeneration.</p>
+        
+        <button onclick="runBalancePersistenceTest()">Run Test</button>
+        <button onclick="clearResults()">Clear Results</button>
+        
+        <div id="testResults"></div>
+    </div>
+
+    <script>
+        // Test logging
+        let logs = [];
+        
+        function log(message, data = null) {
+            const logEntry = {
+                message: message,
+                data: data,
+                timestamp: new Date().toISOString()
+            };
+            logs.push(logEntry);
+            console.log(message, data || '');
+        }
+        
+        function displayResults(passed, summary) {
+            const resultsDiv = document.getElementById('testResults');
+            resultsDiv.innerHTML = '';
+            
+            // Summary
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = passed ? 'test-pass' : 'test-fail';
+            summaryDiv.innerHTML = `<h3>${passed ? '✅ TEST PASSED' : '❌ TEST FAILED'}</h3><p>${summary}</p>`;
+            resultsDiv.appendChild(summaryDiv);
+            
+            // Logs
+            const logsContainer = document.createElement('div');
+            logsContainer.innerHTML = '<h3>Test Log:</h3>';
+            logs.forEach(log => {
+                const logDiv = document.createElement('div');
+                logDiv.className = 'log-entry';
+                logDiv.textContent = log.message;
+                if (log.data) {
+                    const dataDiv = document.createElement('div');
+                    dataDiv.className = 'constraint-display';
+                    dataDiv.textContent = JSON.stringify(log.data, null, 2);
+                    logDiv.appendChild(dataDiv);
+                }
+                logsContainer.appendChild(logDiv);
+            });
+            resultsDiv.appendChild(logsContainer);
+        }
+        
+        function clearResults() {
+            logs = [];
+            document.getElementById('testResults').innerHTML = '';
+        }
+        
+        // Mock genetic optimizer for testing
+        class MockGeneticOptimizer {
+            constructor(config) {
+                this.startingBalance = config.startingBalance || 90.50;
+                this.targetEndingBalance = config.targetEndingBalance || 490.50;
+                this.minimumBalance = config.minimumBalance || 0;
+                this.manualConstraints = config.manualConstraints || {};
+                
+                this.shifts = {
+                    large: { gross: 94.50, net: 86.50 },
+                    medium: { gross: 75.50, net: 67.50 },
+                    small: { gross: 64.00, net: 56.00 }
+                };
+                
+                this.expensesByDay = new Array(31).fill(0);
+                this.depositsByDay = new Array(31).fill(0);
+                
+                // Mock expenses
+                this.expensesByDay[1] = 177;
+                this.expensesByDay[2] = 8;
+                this.expensesByDay[5] = 132.50;
+                this.expensesByDay[10] = 230;
+                this.expensesByDay[15] = 100;
+                this.expensesByDay[20] = 150;
+                this.expensesByDay[25] = 139;
+                this.expensesByDay[30] = 1636;
+                
+                // Mock deposits
+                this.depositsByDay[11] = 1356;
+                this.depositsByDay[25] = 1356;
+                
+                // Apply manual expense constraints
+                if (this.manualConstraints) {
+                    Object.keys(this.manualConstraints).forEach(day => {
+                        const dayNum = parseInt(day);
+                        if (this.manualConstraints[day].fixedExpenses !== undefined) {
+                            this.expensesByDay[dayNum] = this.manualConstraints[day].fixedExpenses;
+                        }
+                    });
+                }
+                
+                this.processBalanceConstraints();
+            }
+            
+            processBalanceConstraints() {
+                if (!this.manualConstraints) return;
+                
+                log('Processing balance constraints...');
+                
+                // Find days with fixed balance constraints
+                const balanceConstraints = [];
+                Object.keys(this.manualConstraints).forEach(day => {
+                    const dayNum = parseInt(day);
+                    if (this.manualConstraints[day].fixedBalance !== undefined) {
+                        balanceConstraints.push({
+                            day: dayNum,
+                            balance: this.manualConstraints[day].fixedBalance
+                        });
+                    }
+                });
+                
+                // Sort by day
+                balanceConstraints.sort((a, b) => a.day - b.day);
+                log(`Found ${balanceConstraints.length} balance constraints`, balanceConstraints);
+                
+                // For each balance constraint, calculate required earnings
+                balanceConstraints.forEach(constraint => {
+                    const day = constraint.day;
+                    const targetBalance = constraint.balance;
+                    
+                    log(`Processing balance constraint for day ${day}: target = $${targetBalance}`);
+                    
+                    // Calculate what the previous balance would be
+                    let prevBalance = this.startingBalance;
+                    log(`Starting balance for calculation: $${prevBalance}`);
+                    
+                    for (let d = 1; d < day; d++) {
+                        let dayEarnings = 0;
+                        
+                        // Add any existing shifts (if already constrained)
+                        if (this.manualConstraints[d] && this.manualConstraints[d].shifts !== undefined) {
+                            const shifts = this.manualConstraints[d].shifts;
+                            if (shifts) {
+                                const shiftArray = shifts.split('+');
+                                for (let shift of shiftArray) {
+                                    dayEarnings += this.shifts[shift].net;
+                                }
+                            }
+                        } else if (this.manualConstraints[d] && this.manualConstraints[d].fixedEarnings !== undefined) {
+                            dayEarnings = this.manualConstraints[d].fixedEarnings;
+                        }
+                        
+                        const dayDeposit = this.depositsByDay[d] || 0;
+                        const dayExpenses = this.expensesByDay[d] || 0;
+                        
+                        prevBalance = prevBalance + dayEarnings + dayDeposit - dayExpenses;
+                        
+                        if (dayEarnings > 0 || dayDeposit > 0 || dayExpenses > 0) {
+                            log(`Day ${d}: +${dayEarnings} (earnings) +${dayDeposit} (deposit) -${dayExpenses} (expenses) = ${prevBalance.toFixed(2)}`);
+                        }
+                    }
+                    
+                    log(`Previous balance calculated: $${prevBalance.toFixed(2)}`);
+                    
+                    // Calculate required earnings for this day
+                    const deposit = this.depositsByDay[day] || 0;
+                    const expenses = this.expensesByDay[day] || 0;
+                    const requiredEarnings = targetBalance - prevBalance - deposit + expenses;
+                    
+                    log(`Day ${day} calculation: ${targetBalance} - ${prevBalance.toFixed(2)} - ${deposit} + ${expenses} = ${requiredEarnings.toFixed(2)} required earnings`);
+                    
+                    // Only set earnings constraint if we don't already have one
+                    if (!this.manualConstraints[day].shifts && 
+                        this.manualConstraints[day].fixedEarnings === undefined) {
+                        
+                        // Find the best shift combination to match required earnings
+                        if (requiredEarnings <= 0) {
+                            this.manualConstraints[day].shifts = null; // Day off
+                            log(`Day ${day}: No earnings needed (day off)`);
+                        } else if (Math.abs(requiredEarnings - 56) < 5) {
+                            this.manualConstraints[day].shifts = 'small';
+                            log(`Day ${day}: Small shift assigned`);
+                        } else if (Math.abs(requiredEarnings - 67.5) < 5) {
+                            this.manualConstraints[day].shifts = 'medium';
+                            log(`Day ${day}: Medium shift assigned`);
+                        } else if (Math.abs(requiredEarnings - 86.5) < 5) {
+                            this.manualConstraints[day].shifts = 'large';
+                            log(`Day ${day}: Large shift assigned`);
+                        } else if (Math.abs(requiredEarnings - 112) < 5) {
+                            this.manualConstraints[day].shifts = 'small+small';
+                            log(`Day ${day}: Double small shifts assigned`);
+                        } else if (Math.abs(requiredEarnings - 123.5) < 5) {
+                            this.manualConstraints[day].shifts = 'small+medium';
+                            log(`Day ${day}: Small+medium shifts assigned`);
+                        } else if (Math.abs(requiredEarnings - 135) < 5) {
+                            this.manualConstraints[day].shifts = 'medium+medium';
+                            log(`Day ${day}: Double medium shifts assigned`);
+                        } else {
+                            // Use fixed earnings if no shift matches well
+                            this.manualConstraints[day].fixedEarnings = requiredEarnings;
+                            log(`Day ${day}: Fixed earnings of $${requiredEarnings.toFixed(2)} assigned`);
+                        }
+                    }
+                });
+                
+                log('Final constraints after processing:', this.manualConstraints);
+            }
+            
+            // Simulate generating a schedule
+            generateSchedule() {
+                const schedule = [];
+                let balance = this.startingBalance;
+                
+                for (let day = 1; day <= 30; day++) {
+                    let earnings = 0;
+                    let shiftType = 'Off';
+                    
+                    // Check constraints - FIXED: properly handle all constraint types
+                    if (this.manualConstraints[day]) {
+                        if (this.manualConstraints[day].shifts !== undefined) {
+                            shiftType = this.manualConstraints[day].shifts || 'Off';
+                            if (shiftType && shiftType !== 'Off') {
+                                const shifts = shiftType.split('+');
+                                for (let shift of shifts) {
+                                    earnings += this.shifts[shift].net;
+                                }
+                            }
+                        } else if (this.manualConstraints[day].fixedEarnings !== undefined) {
+                            earnings = this.manualConstraints[day].fixedEarnings;
+                            shiftType = 'Custom';
+                        }
+                    } else {
+                        // Random assignment for unconstrained days
+                        if (Math.random() > 0.5) {
+                            shiftType = 'medium';
+                            earnings = 67.5;
+                        }
+                    }
+                    
+                    const deposit = this.depositsByDay[day] || 0;
+                    const expenses = this.expensesByDay[day] || 0;
+                    balance = balance + earnings + deposit - expenses;
+                    
+                    schedule.push({
+                        day: day,
+                        shifts: shiftType,
+                        earnings: earnings,
+                        expenses: expenses,
+                        deposit: deposit,
+                        balance: balance
+                    });
+                }
+                
+                return schedule;
+            }
+        }
+        
+        async function runBalancePersistenceTest() {
+            clearResults();
+            log('Starting Balance Persistence Test');
+            
+            try {
+                // Test Case 1: Single balance constraint
+                log('\n=== Test Case 1: Single Balance Constraint ===');
+                const constraints1 = {
+                    10: { fixedBalance: 500 }
+                };
+                
+                const optimizer1 = new MockGeneticOptimizer({
+                    startingBalance: 90.50,
+                    manualConstraints: constraints1
+                });
+                
+                const schedule1 = optimizer1.generateSchedule();
+                const day10Result = schedule1[9]; // Day 10 is index 9
+                
+                log(`Day 10 balance: $${day10Result.balance.toFixed(2)} (expected: $500.00)`);
+                
+                if (Math.abs(day10Result.balance - 500) > 0.01) {
+                    throw new Error(`Balance constraint not met! Expected $500, got $${day10Result.balance.toFixed(2)}`);
+                }
+                
+                // Test Case 2: Multiple balance constraints
+                log('\n=== Test Case 2: Multiple Balance Constraints ===');
+                const constraints2 = {
+                    5: { fixedBalance: 200 },
+                    15: { fixedBalance: 800 },
+                    25: { fixedBalance: 1500 }
+                };
+                
+                const optimizer2 = new MockGeneticOptimizer({
+                    startingBalance: 90.50,
+                    manualConstraints: constraints2
+                });
+                
+                const schedule2 = optimizer2.generateSchedule();
+                
+                const day5Result = schedule2[4];
+                const day15Result = schedule2[14];
+                const day25Result = schedule2[24];
+                
+                log(`Day 5 balance: $${day5Result.balance.toFixed(2)} (expected: $200.00)`);
+                log(`Day 15 balance: $${day15Result.balance.toFixed(2)} (expected: $800.00)`);
+                log(`Day 25 balance: $${day25Result.balance.toFixed(2)} (expected: $1500.00)`);
+                
+                let allPassed = true;
+                if (Math.abs(day5Result.balance - 200) > 0.01) {
+                    allPassed = false;
+                    log(`❌ Day 5 balance constraint failed`);
+                }
+                if (Math.abs(day15Result.balance - 800) > 0.01) {
+                    allPassed = false;
+                    log(`❌ Day 15 balance constraint failed`);
+                }
+                if (Math.abs(day25Result.balance - 1500) > 0.01) {
+                    allPassed = false;
+                    log(`❌ Day 25 balance constraint failed`);
+                }
+                
+                if (!allPassed) {
+                    throw new Error('Multiple balance constraints test failed');
+                }
+                
+                // Test Case 3: Balance constraint with existing earnings constraint
+                log('\n=== Test Case 3: Balance + Earnings Constraints ===');
+                const constraints3 = {
+                    5: { shifts: 'large' }, // Fixed earnings
+                    10: { fixedBalance: 400 } // Fixed balance
+                };
+                
+                const optimizer3 = new MockGeneticOptimizer({
+                    startingBalance: 90.50,
+                    manualConstraints: constraints3
+                });
+                
+                const schedule3 = optimizer3.generateSchedule();
+                const day5Earnings = schedule3[4];
+                const day10Balance = schedule3[9];
+                
+                log(`Day 5 shifts: ${day5Earnings.shifts} (expected: large)`);
+                log(`Day 10 balance: $${day10Balance.balance.toFixed(2)} (expected: $400.00)`);
+                
+                if (day5Earnings.shifts !== 'large') {
+                    throw new Error('Earnings constraint not preserved');
+                }
+                if (Math.abs(day10Balance.balance - 400) > 0.01) {
+                    throw new Error('Balance constraint not met with existing earnings constraint');
+                }
+                
+                displayResults(true, 'All balance persistence tests passed! Balance constraints are properly converted to earnings requirements and preserved during regeneration.');
+                
+            } catch (error) {
+                log(`Test failed: ${error.message}`);
+                displayResults(false, error.message);
+            }
+        }
+    </script>
+</body>
+</html>

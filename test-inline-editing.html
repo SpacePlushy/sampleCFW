@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inline Editing Tests - Financial Schedule</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .test-results {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+        }
+        .test-pass {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .test-fail {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .test-log {
+            background: #e9ecef;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-size: 14px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .test-summary {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 20px 0;
+            padding: 15px;
+            background: #007bff;
+            color: white;
+            border-radius: 5px;
+            text-align: center;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .schedule-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+        }
+        .schedule-table th, .schedule-table td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        .schedule-table td.editable {
+            cursor: text;
+            position: relative;
+        }
+        .schedule-table td.editable:hover {
+            background-color: #f0f8ff !important;
+            outline: 1px dashed #007bff;
+        }
+        .schedule-table td.editable:focus {
+            background-color: #fff !important;
+            outline: 2px solid #007bff;
+            box-shadow: 0 0 5px rgba(0,123,255,0.3);
+        }
+        .schedule-table td.edited {
+            background-color: #e3f2fd !important;
+            font-weight: bold;
+        }
+        .schedule-table td.edited::after {
+            content: "✏️";
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            font-size: 12px;
+        }
+        .schedule-table th {
+            background: #007bff;
+            color: white;
+            font-weight: bold;
+        }
+        #mockSchedule {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>Inline Editing Test Suite</h1>
+        <p>This test suite verifies the inline editing functionality for the financial schedule table.</p>
+        
+        <div>
+            <button onclick="runAllTests()">Run All Tests</button>
+            <button onclick="clearResults()">Clear Results</button>
+        </div>
+        
+        <div id="testResults"></div>
+        <div id="testSummary" class="test-summary" style="display: none;"></div>
+    </div>
+    
+    <div class="test-container" id="mockSchedule">
+        <h2>Test Schedule Table</h2>
+        <table class="schedule-table">
+            <thead>
+                <tr>
+                    <th>Day</th>
+                    <th>Shifts</th>
+                    <th>Earnings</th>
+                    <th>Expenses</th>
+                    <th>Balance</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody id="scheduleBody"></tbody>
+        </table>
+    </div>
+
+    <script>
+        // Test infrastructure
+        let testResults = [];
+        let currentTest = null;
+        
+        function log(message) {
+            if (currentTest) {
+                currentTest.logs.push(message);
+            }
+            console.log(message);
+        }
+        
+        function assert(condition, message) {
+            if (!condition) {
+                throw new Error(`Assertion failed: ${message}`);
+            }
+            log(`✓ ${message}`);
+        }
+        
+        function assertEqual(actual, expected, message) {
+            if (actual !== expected) {
+                throw new Error(`${message}\nExpected: ${expected}\nActual: ${actual}`);
+            }
+            log(`✓ ${message}`);
+        }
+        
+        function assertAlmostEqual(actual, expected, tolerance, message) {
+            if (Math.abs(actual - expected) > tolerance) {
+                throw new Error(`${message}\nExpected: ${expected} ±${tolerance}\nActual: ${actual}`);
+            }
+            log(`✓ ${message}`);
+        }
+        
+        async function test(name, testFn) {
+            currentTest = {
+                name: name,
+                logs: [],
+                passed: false,
+                error: null,
+                startTime: performance.now()
+            };
+            
+            try {
+                await testFn();
+                currentTest.passed = true;
+            } catch (error) {
+                currentTest.error = error;
+                currentTest.passed = false;
+            }
+            
+            currentTest.duration = performance.now() - currentTest.startTime;
+            testResults.push(currentTest);
+            currentTest = null;
+        }
+        
+        // Import the editing functions from main file
+        let editedCells = new Map();
+        let lastOptimizationConfig = {
+            startingBalance: 90.50,
+            targetEndingBalance: 490.50,
+            minimumBalance: 0
+        };
+        
+        // Mock the required functions
+        function updateRegenerateSection() {
+            // Mock implementation
+            const count = editedCells.size;
+            log(`Regenerate section updated: ${count} cells edited`);
+        }
+        
+        // Copy the main editing functions for testing
+        function handleCellEdit(cell) {
+            const day = parseInt(cell.dataset.day);
+            const field = cell.dataset.field;
+            const originalValue = parseFloat(cell.dataset.original) || 0;
+            let newValue = cell.textContent.trim();
+            
+            if (['earnings', 'expenses', 'balance'].includes(field)) {
+                // Parse the value, removing any non-numeric characters except decimal point
+                newValue = newValue.replace(/[^0-9.]/g, '');
+                newValue = parseFloat(newValue) || 0;
+                
+                if (newValue > 0) {
+                    cell.textContent = '$' + newValue.toFixed(2);
+                } else {
+                    cell.textContent = '-';
+                }
+                
+                if (Math.abs(newValue - originalValue) < 0.01) {
+                    const key = `${day}-${field}`;
+                    editedCells.delete(key);
+                    cell.classList.remove('edited');
+                } else {
+                    const key = `${day}-${field}`;
+                    editedCells.set(key, {
+                        day: day,
+                        field: field,
+                        originalValue: originalValue,
+                        newValue: newValue
+                    });
+                    cell.classList.add('edited');
+                    
+                    if (field === 'earnings' || field === 'expenses') {
+                        recalculateBalance(day);
+                    }
+                }
+            } else if (field === 'notes') {
+                if (newValue !== cell.dataset.original) {
+                    const key = `${day}-${field}`;
+                    editedCells.set(key, {
+                        day: day,
+                        field: field,
+                        originalValue: cell.dataset.original,
+                        newValue: newValue
+                    });
+                    cell.classList.add('edited');
+                } else {
+                    const key = `${day}-${field}`;
+                    editedCells.delete(key);
+                    cell.classList.remove('edited');
+                }
+            }
+            
+            updateRegenerateSection();
+        }
+        
+        function recalculateBalance(changedDay) {
+            const rows = document.querySelectorAll('.schedule-table tbody tr');
+            let balance = lastOptimizationConfig.startingBalance;
+            
+            // Recalculate from day 1 to ensure consistency
+            rows.forEach((row, index) => {
+                const day = index + 1;
+                const earningsCell = row.querySelector(`td[data-field="earnings"]`);
+                const expensesCell = row.querySelector(`td[data-field="expenses"]`);
+                const balanceCell = row.querySelector(`td[data-field="balance"]`);
+                
+                let earnings = 0;
+                let expenses = 0;
+                
+                const earningsEdit = editedCells.get(`${day}-earnings`);
+                const expensesEdit = editedCells.get(`${day}-expenses`);
+                
+                if (earningsEdit) {
+                    earnings = earningsEdit.newValue;
+                } else {
+                    earnings = parseFloat(earningsCell.dataset.original) || 0;
+                }
+                
+                if (expensesEdit) {
+                    expenses = expensesEdit.newValue;
+                } else {
+                    expenses = parseFloat(expensesCell.dataset.original) || 0;
+                }
+                
+                // Calculate new balance: previous balance + earnings - expenses
+                balance = balance + earnings - expenses;
+                
+                // Store original balance for comparison
+                const originalBalance = parseFloat(balanceCell.dataset.original) || 0;
+                
+                // Update the displayed balance
+                balanceCell.textContent = '$' + balance.toFixed(2);
+                
+                // Track if this balance changed from original
+                if (Math.abs(balance - originalBalance) > 0.01) {
+                    const key = `${day}-balance`;
+                    editedCells.set(key, {
+                        day: day,
+                        field: 'balance',
+                        originalValue: originalBalance,
+                        newValue: balance
+                    });
+                    balanceCell.classList.add('edited');
+                } else {
+                    const key = `${day}-balance`;
+                    editedCells.delete(key);
+                    balanceCell.classList.remove('edited');
+                }
+                
+                if (balance < lastOptimizationConfig.minimumBalance) {
+                    balanceCell.classList.add('low-balance');
+                } else {
+                    balanceCell.classList.remove('low-balance');
+                }
+            });
+        }
+        
+        // Test data setup
+        function setupMockSchedule() {
+            const mockData = [
+                { day: 1, shifts: 'medium', earnings: 67.50, expenses: 177, balance: -19.00 },
+                { day: 2, shifts: 'Off', earnings: 0, expenses: 8, balance: -27.00 },
+                { day: 3, shifts: 'large', earnings: 86.50, expenses: 0, balance: 59.50 },
+                { day: 4, shifts: 'Off', earnings: 0, expenses: 0, balance: 59.50 },
+                { day: 5, shifts: 'medium', earnings: 67.50, expenses: 132.50, balance: -5.50 }
+            ];
+            
+            const tbody = document.getElementById('scheduleBody');
+            tbody.innerHTML = '';
+            
+            mockData.forEach(day => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${day.day}</td>
+                    <td>${day.shifts}</td>
+                    <td class="editable" contenteditable="true" data-day="${day.day}" data-field="earnings" data-original="${day.earnings}">${day.earnings > 0 ? '$' + day.earnings.toFixed(2) : '-'}</td>
+                    <td class="editable" contenteditable="true" data-day="${day.day}" data-field="expenses" data-original="${day.expenses}">${day.expenses > 0 ? '$' + day.expenses.toFixed(2) : '-'}</td>
+                    <td class="editable" contenteditable="true" data-day="${day.day}" data-field="balance" data-original="${day.balance}">${'$' + day.balance.toFixed(2)}</td>
+                    <td class="editable" contenteditable="true" data-day="${day.day}" data-field="notes" data-original="">-</td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            // Store original display values
+            document.querySelectorAll('.editable').forEach(cell => {
+                cell.dataset.originalDisplay = cell.textContent;
+            });
+            
+            // Clear any previous edits
+            editedCells.clear();
+        }
+        
+        // Tests
+        async function testCellEditingBasics() {
+            setupMockSchedule();
+            
+            const earningsCell = document.querySelector('td[data-day="1"][data-field="earnings"]');
+            
+            // Test editing a cell
+            earningsCell.textContent = '100';
+            handleCellEdit(earningsCell);
+            
+            assertEqual(earningsCell.textContent, '$100.00', 'Cell should format currency correctly');
+            assert(earningsCell.classList.contains('edited'), 'Cell should have edited class');
+            assert(editedCells.has('1-earnings'), 'Edit should be tracked in editedCells map');
+            
+            const edit = editedCells.get('1-earnings');
+            assertEqual(edit.newValue, 100, 'New value should be stored correctly');
+            assertEqual(edit.originalValue, 67.50, 'Original value should be preserved');
+        }
+        
+        async function testBalanceRecalculation() {
+            setupMockSchedule();
+            
+            // Change earnings for day 1
+            const earningsCell = document.querySelector('td[data-day="1"][data-field="earnings"]');
+            earningsCell.textContent = '100';
+            handleCellEdit(earningsCell);
+            
+            // Check if balance was recalculated
+            const balanceCell1 = document.querySelector('td[data-day="1"][data-field="balance"]');
+            const balanceCell2 = document.querySelector('td[data-day="2"][data-field="balance"]');
+            const balanceCell3 = document.querySelector('td[data-day="3"][data-field="balance"]');
+            
+            // Day 1: 90.50 (starting) + 100 (earnings) - 177 (expenses) = 13.50
+            assertAlmostEqual(parseFloat(balanceCell1.textContent.replace('$', '')), 13.50, 0.01, 
+                'Day 1 balance should be recalculated correctly');
+            
+            // Day 2: 13.50 + 0 - 8 = 5.50
+            assertAlmostEqual(parseFloat(balanceCell2.textContent.replace('$', '')), 5.50, 0.01, 
+                'Day 2 balance should cascade correctly');
+            
+            // Day 3: 5.50 + 86.50 - 0 = 92.00
+            assertAlmostEqual(parseFloat(balanceCell3.textContent.replace('$', '')), 92.00, 0.01, 
+                'Day 3 balance should cascade correctly');
+        }
+        
+        async function testExpenseEditing() {
+            setupMockSchedule();
+            
+            const expenseCell = document.querySelector('td[data-day="2"][data-field="expenses"]');
+            expenseCell.textContent = '50';
+            handleCellEdit(expenseCell);
+            
+            assertEqual(expenseCell.textContent, '$50.00', 'Expense should format correctly');
+            assert(editedCells.has('2-expenses'), 'Expense edit should be tracked');
+            
+            // Check balance recalculation
+            const balanceCell2 = document.querySelector('td[data-day="2"][data-field="balance"]');
+            // Day 2: -19.00 + 0 - 50 = -69.00
+            assertAlmostEqual(parseFloat(balanceCell2.textContent.replace('$', '')), -69.00, 0.01,
+                'Balance should update when expenses change');
+        }
+        
+        async function testZeroValues() {
+            setupMockSchedule();
+            
+            const earningsCell = document.querySelector('td[data-day="1"][data-field="earnings"]');
+            earningsCell.textContent = '0';
+            handleCellEdit(earningsCell);
+            
+            assertEqual(earningsCell.textContent, '-', 'Zero values should display as dash');
+            assert(editedCells.has('1-earnings'), 'Zero edit should still be tracked');
+        }
+        
+        async function testRevertingChanges() {
+            setupMockSchedule();
+            
+            const earningsCell = document.querySelector('td[data-day="1"][data-field="earnings"]');
+            const originalValue = earningsCell.dataset.original;
+            
+            // Make a change
+            earningsCell.textContent = '100';
+            handleCellEdit(earningsCell);
+            assert(editedCells.has('1-earnings'), 'Edit should be tracked');
+            
+            // Revert to original value
+            earningsCell.textContent = originalValue;
+            handleCellEdit(earningsCell);
+            
+            assert(!editedCells.has('1-earnings'), 'Edit should be removed when reverted');
+            assert(!earningsCell.classList.contains('edited'), 'Edited class should be removed');
+        }
+        
+        async function testNotesEditing() {
+            setupMockSchedule();
+            
+            const notesCell = document.querySelector('td[data-day="3"][data-field="notes"]');
+            notesCell.textContent = 'Custom note';
+            handleCellEdit(notesCell);
+            
+            assertEqual(notesCell.textContent, 'Custom note', 'Notes should not be formatted');
+            assert(editedCells.has('3-notes'), 'Notes edit should be tracked');
+            assert(notesCell.classList.contains('edited'), 'Notes cell should have edited class');
+        }
+        
+        async function testMultipleEdits() {
+            setupMockSchedule();
+            
+            // Edit multiple cells
+            const cells = [
+                { day: 1, field: 'earnings', value: '100' },
+                { day: 2, field: 'expenses', value: '20' },
+                { day: 3, field: 'earnings', value: '150' },
+                { day: 4, field: 'notes', value: 'Day off - rest day' }
+            ];
+            
+            cells.forEach(edit => {
+                const cell = document.querySelector(`td[data-day="${edit.day}"][data-field="${edit.field}"]`);
+                cell.textContent = edit.value;
+                handleCellEdit(cell);
+            });
+            
+            // Count expected edits: 4 direct edits + balance changes for affected days
+            // When earnings change on day 1 and 3, all 5 days' balances change
+            // When expenses change on day 2, days 2-5 balances change
+            const expectedEdits = editedCells.size;
+            assert(expectedEdits >= 4, `Should track at least 4 direct edits (found ${expectedEdits})`);
+            
+            // Verify all edits are tracked
+            assert(editedCells.has('1-earnings'), 'Day 1 earnings should be tracked');
+            assert(editedCells.has('2-expenses'), 'Day 2 expenses should be tracked');
+            assert(editedCells.has('3-earnings'), 'Day 3 earnings should be tracked');
+            assert(editedCells.has('4-notes'), 'Day 4 notes should be tracked');
+        }
+        
+        async function testInvalidInput() {
+            setupMockSchedule();
+            
+            const earningsCell = document.querySelector('td[data-day="1"][data-field="earnings"]');
+            
+            // Test mixed alphanumeric input
+            earningsCell.textContent = 'abc123.50xyz';
+            handleCellEdit(earningsCell);
+            
+            assertEqual(earningsCell.textContent, '$123.50', 'Should parse valid number from mixed input');
+            
+            // Test completely invalid input
+            earningsCell.textContent = 'invalid';
+            handleCellEdit(earningsCell);
+            
+            assertEqual(earningsCell.textContent, '-', 'Should default to dash for invalid input');
+        }
+        
+        async function testCascadingBalanceUpdates() {
+            setupMockSchedule();
+            
+            // Make a change that affects multiple days
+            const expenseCell = document.querySelector('td[data-day="1"][data-field="expenses"]');
+            expenseCell.textContent = '100'; // Reduce from 177 to 100
+            handleCellEdit(expenseCell);
+            
+            // Check all balance cells were updated
+            for (let day = 1; day <= 5; day++) {
+                const balanceCell = document.querySelector(`td[data-day="${day}"][data-field="balance"]`);
+                assert(balanceCell.classList.contains('edited'), `Day ${day} balance should be marked as edited`);
+            }
+            
+            // Verify cascade tracking
+            assertEqual(editedCells.size, 6, 'Should track 1 expense edit + 5 balance updates');
+        }
+        
+        // Test runner
+        async function runAllTests() {
+            testResults = [];
+            const resultsDiv = document.getElementById('testResults');
+            resultsDiv.innerHTML = '<h2>Test Results</h2>';
+            
+            // Show the mock schedule
+            document.getElementById('mockSchedule').style.display = 'block';
+            
+            const tests = [
+                testCellEditingBasics,
+                testBalanceRecalculation,
+                testExpenseEditing,
+                testZeroValues,
+                testRevertingChanges,
+                testNotesEditing,
+                testMultipleEdits,
+                testInvalidInput,
+                testCascadingBalanceUpdates
+            ];
+            
+            for (const testFn of tests) {
+                await test(testFn.name, testFn);
+            }
+            
+            displayResults();
+        }
+        
+        function displayResults() {
+            const resultsDiv = document.getElementById('testResults');
+            const summaryDiv = document.getElementById('testSummary');
+            
+            let passedCount = 0;
+            let failedCount = 0;
+            
+            testResults.forEach(result => {
+                const resultDiv = document.createElement('div');
+                resultDiv.className = result.passed ? 'test-results test-pass' : 'test-results test-fail';
+                
+                let html = `<h3>${result.passed ? '✅' : '❌'} ${result.name}</h3>`;
+                html += `<p>Duration: ${result.duration.toFixed(2)}ms</p>`;
+                
+                if (result.logs.length > 0) {
+                    html += '<div class="test-log">';
+                    result.logs.forEach(log => {
+                        html += `<div>${log}</div>`;
+                    });
+                    html += '</div>';
+                }
+                
+                if (!result.passed && result.error) {
+                    html += `<p style="color: red; font-weight: bold;">Error: ${result.error.message}</p>`;
+                }
+                
+                resultDiv.innerHTML = html;
+                resultsDiv.appendChild(resultDiv);
+                
+                if (result.passed) passedCount++;
+                else failedCount++;
+            });
+            
+            // Display summary
+            summaryDiv.style.display = 'block';
+            summaryDiv.innerHTML = `Test Summary: ${passedCount} passed, ${failedCount} failed (Total: ${testResults.length})`;
+            summaryDiv.style.background = failedCount === 0 ? '#28a745' : '#dc3545';
+        }
+        
+        function clearResults() {
+            document.getElementById('testResults').innerHTML = '<h2>Test Results</h2>';
+            document.getElementById('testSummary').style.display = 'none';
+            document.getElementById('mockSchedule').style.display = 'none';
+            testResults = [];
+        }
+    </script>
+</body>
+</html>
