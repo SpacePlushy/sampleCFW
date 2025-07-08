@@ -1523,12 +1523,31 @@
                 const originalValue = cell.textContent;
                 cell.dataset.originalDisplay = originalValue;
                 
+                // Track whether user has actually typed in this cell
+                let userHasTyped = false;
+                
                 // Focus event - prepare for editing
                 cell.addEventListener('focus', function() {
+                    // Reset the typing flag
+                    userHasTyped = false;
+                    
+                    // Store the content before focus changes it
+                    this.dataset.contentBeforeFocus = this.textContent;
+                    
                     // If it's a currency field, remove $ and format for editing
                     if (['earnings', 'expenses', 'balance'].includes(this.dataset.field)) {
-                        const numValue = parseFloat(this.dataset.original);
-                        this.textContent = numValue > 0 ? numValue.toFixed(2) : '0';
+                        // Check if this cell has been edited
+                        const key = `${this.dataset.day}-${this.dataset.field}`;
+                        const editedValue = editedCells.get(key);
+                        
+                        if (editedValue) {
+                            // Use the edited value, not the original
+                            this.textContent = editedValue.newValue > 0 ? editedValue.newValue.toFixed(2) : '0';
+                        } else {
+                            // Use the original value
+                            const numValue = parseFloat(this.dataset.original);
+                            this.textContent = numValue > 0 ? numValue.toFixed(2) : '0';
+                        }
                     }
                     // Select all text for easy replacement
                     const range = document.createRange();
@@ -1540,6 +1559,9 @@
                 
                 // Input event - validate while typing
                 cell.addEventListener('input', function() {
+                    // User has typed something
+                    userHasTyped = true;
+                    
                     if (['earnings', 'expenses', 'balance'].includes(this.dataset.field)) {
                         // Allow only numbers and decimal point
                         let value = this.textContent;
@@ -1564,6 +1586,14 @@
                 
                 // Blur event - save changes
                 cell.addEventListener('blur', function() {
+                    // Only process if user actually typed something
+                    if (!userHasTyped) {
+                        // No user input, just restore original display
+                        this.textContent = this.dataset.contentBeforeFocus;
+                        return;
+                    }
+                    
+                    // User typed something, process the edit
                     handleCellEdit(this);
                 });
                 
@@ -1586,11 +1616,18 @@
             // Parse numeric fields
             if (['earnings', 'expenses', 'balance'].includes(field)) {
                 // Parse the value, removing any non-numeric characters except decimal point
-                newValue = newValue.replace(/[^0-9.]/g, '');
-                newValue = parseFloat(newValue) || 0;
+                const cleanedValue = newValue.replace(/[^0-9.]/g, '');
+                const parsedValue = parseFloat(cleanedValue);
+                
+                // Only use 0 if the cleaned value is empty, not if parseFloat fails
+                if (cleanedValue === '' || isNaN(parsedValue)) {
+                    newValue = 0;
+                } else {
+                    newValue = parsedValue;
+                }
                 
                 // Format display with $
-                if (newValue > 0) {
+                if (newValue > 0 || field === 'balance') {
                     cell.textContent = '$' + newValue.toFixed(2);
                 } else {
                     cell.textContent = '-';
@@ -1773,22 +1810,8 @@
                 // Update balance cell display
                 balanceCell.textContent = '$' + balance.toFixed(2);
                 
-                // Check if balance changed from original
-                const originalBalance = parseFloat(balanceCell.dataset.original) || 0;
-                if (Math.abs(balance - originalBalance) > 0.01) {
-                    const key = `${day}-balance`;
-                    editedCells.set(key, {
-                        day: day,
-                        field: 'balance',
-                        originalValue: originalBalance,
-                        newValue: balance
-                    });
-                    balanceCell.classList.add('edited');
-                } else {
-                    const key = `${day}-balance`;
-                    editedCells.delete(key);
-                    balanceCell.classList.remove('edited');
-                }
+                // Don't mark automatic balance recalculations as edits
+                // Only direct user edits to balance cells should be tracked
                 
                 // Update balance classes
                 if (balance < lastOptimizationConfig.minimumBalance) {
@@ -1945,21 +1968,31 @@
                     const earnings = edit.newValue;
                     if (earnings === 0) {
                         manualConstraints[day].shifts = null; // Day off
-                    } else if (Math.abs(earnings - 56) < 0.01) {
-                        manualConstraints[day].shifts = 'small';
-                    } else if (Math.abs(earnings - 67.5) < 0.01) {
-                        manualConstraints[day].shifts = 'medium';
-                    } else if (Math.abs(earnings - 86.5) < 0.01) {
-                        manualConstraints[day].shifts = 'large';
-                    } else if (Math.abs(earnings - 112) < 0.01) {
-                        manualConstraints[day].shifts = 'small+small';
-                    } else if (Math.abs(earnings - 123.5) < 0.01) {
-                        manualConstraints[day].shifts = 'small+medium';
-                    } else if (Math.abs(earnings - 135) < 0.01) {
-                        manualConstraints[day].shifts = 'medium+medium';
                     } else {
-                        // Custom earnings amount - we'll handle this as a fixed constraint
-                        manualConstraints[day].fixedEarnings = earnings;
+                        // Try to match with standard shift values (with tolerance for rounding)
+                        const tolerance = 0.5;
+                        if (Math.abs(earnings - 56) < tolerance) {
+                            manualConstraints[day].shifts = 'small';
+                        } else if (Math.abs(earnings - 67.5) < tolerance) {
+                            manualConstraints[day].shifts = 'medium';
+                        } else if (Math.abs(earnings - 86.5) < tolerance) {
+                            manualConstraints[day].shifts = 'large';
+                        } else if (Math.abs(earnings - 112) < tolerance) {
+                            manualConstraints[day].shifts = 'small+small';
+                        } else if (Math.abs(earnings - 123.5) < tolerance) {
+                            manualConstraints[day].shifts = 'small+medium';
+                        } else if (Math.abs(earnings - 135) < tolerance) {
+                            manualConstraints[day].shifts = 'medium+medium';
+                        } else if (Math.abs(earnings - 154) < tolerance) {
+                            manualConstraints[day].shifts = 'medium+large';
+                        } else if (Math.abs(earnings - 173) < tolerance) {
+                            manualConstraints[day].shifts = 'large+large';
+                        } else {
+                            // Custom earnings amount - use fixed earnings constraint
+                            // This allows the optimizer to work with any earnings value
+                            manualConstraints[day].fixedEarnings = earnings;
+                            console.log(`Custom earnings constraint: Day ${day} = $${earnings.toFixed(2)}`);
+                        }
                     }
                 } else if (edit.field === 'expenses') {
                     manualConstraints[day].fixedExpenses = edit.newValue;
@@ -2074,8 +2107,9 @@
         }
         
         function displayResultsWithEdits(result, config, savedEdits) {
-            // Check if this is a balance-edit regeneration
-            const hasBalanceEdit = config.manualConstraints && config.manualConstraints.balanceEditDay;
+            // Check if the current edits include balance changes (not just historical ones)
+            const currentEditIncludesBalance = savedEdits && Array.from(savedEdits.values()).some(edit => edit.field === 'balance');
+            const hasBalanceEdit = config.manualConstraints && config.manualConstraints.balanceEditDay && currentEditIncludesBalance;
             
             if (hasBalanceEdit) {
                 // Special display for balance-edit regeneration
@@ -2088,11 +2122,26 @@
             // Then restore the edited cells
             editedCells = new Map(savedEdits);
             
-            // Re-apply visual indicators for edited cells
+            // Re-apply visual indicators AND cell values for edited cells
             editedCells.forEach((edit, key) => {
                 const cell = document.querySelector(`td[data-day="${edit.day}"][data-field="${edit.field}"]`);
                 if (cell) {
                     cell.classList.add('edited');
+                    
+                    // Restore the actual edited content
+                    if (['earnings', 'expenses', 'balance'].includes(edit.field)) {
+                        // Format numeric fields with $ and update data-original
+                        if (edit.newValue > 0) {
+                            cell.textContent = '$' + edit.newValue.toFixed(2);
+                        } else {
+                            cell.textContent = '-';
+                        }
+                        cell.dataset.original = edit.newValue.toString();
+                    } else if (edit.field === 'notes') {
+                        // Restore notes field
+                        cell.textContent = edit.newValue;
+                        cell.dataset.original = edit.newValue;
+                    }
                 }
             });
             
@@ -2169,6 +2218,31 @@
             
             // Enable editing functionality
             enableTableEditing();
+            
+            // Restore any saved edits to the new table
+            if (savedEdits && savedEdits.size > 0) {
+                savedEdits.forEach((edit, key) => {
+                    const cell = document.querySelector(`td[data-day="${edit.day}"][data-field="${edit.field}"]`);
+                    if (cell) {
+                        cell.classList.add('edited');
+                        
+                        // Restore the actual edited content
+                        if (['earnings', 'expenses', 'balance'].includes(edit.field)) {
+                            // Format numeric fields with $ and update data-original
+                            if (edit.newValue > 0) {
+                                cell.textContent = '$' + edit.newValue.toFixed(2);
+                            } else {
+                                cell.textContent = '-';
+                            }
+                            cell.dataset.original = edit.newValue.toString();
+                        } else if (edit.field === 'notes') {
+                            // Restore notes field
+                            cell.textContent = edit.newValue;
+                            cell.dataset.original = edit.newValue;
+                        }
+                    }
+                });
+            }
             
             // Show editing instructions
             document.getElementById('editInstructions').style.display = 'block';
